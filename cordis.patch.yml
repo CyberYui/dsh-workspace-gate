@@ -1,0 +1,14 @@
+# dsh-workspace-gate
+# Row id is also the settings namespace. The row name must be the real package
+# name, otherwise the loader cannot resolve it.
+- insert:
+    - id: workspace-gate
+      name: dsh-workspace-gate
+      config:
+        # Safety lock. Gating is inert until a workspace is armed with a
+        # non-empty disabled list, so leaving this on is safe.
+        gatingEnabled: true
+        # Extra entry ids that may never be switched off by gating.
+        # Core entries (dsh-base, dsh-web-app, workspace-gate) are always
+        # protected in code and do not need to be repeated here.
+        protectIds: []
