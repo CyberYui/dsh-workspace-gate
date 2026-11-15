@@ -29,6 +29,50 @@ window.__ModuleLoader__.load({
 
     const React = require('react')
     const createElement = React.createElement
+
+    // ── chip / popover surface (#chip-readability) ─────────────────────────
+    // The conversation page is repainted by the wallpaper glass sheet when a
+    // wallpaper is active: on body[data-we-glass-page] it remaps
+    // --dsw-alias-bg-layer-1/2/3 and --dsw-alias-border-l1/l2/l3 to translucent
+    // color-mix() recipes. This chip is a third-party surface that recipe does
+    // not know, so borrowing those tokens left it as a clear patch with muted
+    // gray text straight on the wallpaper. Pin an opaque surface of our own
+    // instead. The static palette is theme-invariant, so the dark variant is
+    // selected by the host's own body[data-ds-dark-theme] marker; both values
+    // match what the host uses for the same theme's layer-1 / layer-2.
+    const CHIP_CSS = [
+      '.wg-chip{',
+      '  background: var(--dsw-static-neutral-bluish-00, #ffffff);',
+      '  border: 1px solid rgba(128,128,128,.34);',
+      '  color: var(--dsw-static-neutral-bluish-700, #4b5563);',
+      '}',
+      'body[data-ds-dark-theme] .wg-chip{',
+      '  background: var(--dsw-static-neutral-bluish-850, #2c2c2e);',
+      '  border-color: rgba(255,255,255,.18);',
+      '  color: var(--dsw-static-neutral-bluish-100, #e6e8eb);',
+      '}',
+      '.wg-popover{',
+      '  background: var(--dsw-static-neutral-bluish-50, #f9fafb);',
+      '  border: 1px solid rgba(128,128,128,.34);',
+      '}',
+      'body[data-ds-dark-theme] .wg-popover{',
+      '  background: var(--dsw-static-neutral-bluish-875, #232324);',
+      '  border-color: rgba(255,255,255,.18);',
+      '}',
+    ].join('\n')
+    const ensureChipCss = () => {
+      if (typeof document === 'undefined') return null
+      const TAG = 'dsh-workspace-gate/chip'
+      let tag = document.querySelector('style[data-plugin-css=' + JSON.stringify(TAG) + ']')
+      if (tag === null) {
+        tag = document.createElement('style')
+        tag.dataset.pluginCss = TAG
+        ;(document.head || document.documentElement).appendChild(tag)
+      }
+      if (tag.textContent !== CHIP_CSS) tag.textContent = CHIP_CSS
+      return tag
+    }
+    ensureChipCss()
     // React throws #31 ("Objects are not valid as a React child") when a plain
     // object reaches the child list. Every field below comes from host JSON, so
     // one unexpected object would blank the whole panel. This wrapper keeps
@@ -304,10 +348,14 @@ window.__ModuleLoader__.load({
       entryRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: '1px solid ' + C.border },
       entryName: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
       chevron: { fontSize: 10, color: C.fgMuted, width: 12, textAlign: 'center', flexShrink: 0 },
-      chip: { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, lineHeight: '18px', padding: '1px 8px', borderRadius: 999, border: '1px solid ' + C.border, background: C.bg2, color: C.fgMuted, cursor: 'pointer', maxWidth: 280 },
+      // Surface colours for the chip and its popover live in CHIP_CSS at
+      // the top of this factory: the wallpaper glass sheet remaps the
+      // --dsw-alias-bg-layer-* / -border-* tokens to translucent recipes, and
+      // these two surfaces are not ones that recipe knows about.
+      chip: { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, lineHeight: '18px', padding: '1px 8px', borderRadius: 999, cursor: 'pointer', maxWidth: 280 },
       chipText: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 },
       chipMeta: { whiteSpace: 'nowrap' },
-      popover: { position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 360, maxWidth: '80vw', maxHeight: '72vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: C.bg, border: '1px solid ' + C.border, borderRadius: 12, boxShadow: '0 12px 32px rgba(0,0,0,.30), 0 2px 8px rgba(0,0,0,.16)', zIndex: 60, padding: 12, textAlign: 'left' },
+      popover: { position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 360, maxWidth: '80vw', maxHeight: '72vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: 12, boxShadow: '0 12px 32px rgba(0,0,0,.30), 0 2px 8px rgba(0,0,0,.16)', zIndex: 60, padding: 12, textAlign: 'left' },
       popHeader: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexShrink: 0 },
       popTitle: { fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 230 },
       popPath: { fontFamily: C.mono, fontSize: 10, color: C.fgMuted, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 },
@@ -1271,6 +1319,7 @@ window.__ModuleLoader__.load({
       }
 
       const popover = h('div', {
+        className: 'wg-popover',
         ref: popRef,
         style: createPortal && pos
           ? { ...S.popover, position: 'fixed', left: pos.left, top: pos.top, right: 'auto', width: pos.width, maxWidth: 'none' }
@@ -1332,6 +1381,7 @@ window.__ModuleLoader__.load({
 
       return h('div', { ref: anchorRef, style: { position: 'relative', display: 'inline-flex', alignItems: 'center' } },
         h('button', {
+          className: 'wg-chip',
           style: S.chip,
           title: tt('chip.title'),
           onClick: function () { setOpen(function (value) { return !value }) },
