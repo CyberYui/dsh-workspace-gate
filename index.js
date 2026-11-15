@@ -160,7 +160,7 @@ function kindOf(name) {
   return String(name).indexOf('@deepseek-ai/') === 0 ? 'official' : 'community'
 }
 
-function entryRows(loader, allowed, details) {
+function entryRows(loader, allowed, details, isProtected) {
   const entries = [...loader.entries()]
   // Object.keys(fiber.inject) per pair is O(n^2) key allocations; hoist it.
   const injectCache = new Map()
@@ -187,6 +187,9 @@ function entryRows(loader, allowed, details) {
       loaded: entry.fiber !== undefined && !entry.disabled,
       disabled: Boolean(entry.disabled),
       blockers: dependencyBlockers(entries, entry, injectCache),
+      // Same predicate applyGating() uses, so the panel cannot offer a switch the
+      // host would silently refuse.
+      protected: isProtected ? isProtected(entry) : false,
     })
   }
   return rows
@@ -337,7 +340,11 @@ export function apply(ctx, config) {
     if (!target) return false
     const pkg = typeof target === 'string' ? null : (target.options ? target.options.name : target.name)
     const id = typeof target === 'string' ? target : target.id
-    for (const name of candidateNames(id, pkg)) {
+    // A row may point at a subpath export ('@deepseek-ai/dsh-web-app/startup')
+    // while the built-in names are package names, so collapse before matching.
+    const names = candidateNames(id, pkg)
+    if (pkg) names.add(packageOf(pkg))
+    for (const name of names) {
       if (protectedIds.has(name)) return true
     }
     return false
@@ -489,7 +496,7 @@ export function apply(ctx, config) {
       activeWorkspaceId: state.activeWorkspaceId,
       runningAgents: runningAgents().length,
       protectIds: Array.from(protectedIds),
-      entries: entryRows(loader, bundles.names, packageDetails(bundles.dir, bundles.names)),
+      entries: entryRows(loader, bundles.names, packageDetails(bundles.dir, bundles.names), protect),
       workspaces: await workspaceRows(ctx.workspaceRegistry, state),
     }
   }
@@ -599,7 +606,7 @@ export function apply(ctx, config) {
       fetch: async function (request) {
         const body = await readBody(request)
         if (typeof body.workspaceId !== 'string') return json({ ok: false, error: 'workspaceId is required' }, 400)
-        const disabled = entryRows(loader)
+        const disabled = entryRows(loader, null, null, protect)
           .filter(function (row) { return !row.group && row.disabled && !protect(row) })
           .map(function (row) { return row.id })
         if (!state.workspaces[body.workspaceId]) {

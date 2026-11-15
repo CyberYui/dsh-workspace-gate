@@ -695,15 +695,16 @@ window.__ModuleLoader__.load({
 
     // ------------------------------------------------------------- plug-in list
 
-    function isLocked(entry, protectIds) {
+    function isLocked(entry) {
       if (entry.group) return true
+      if (entry.protected) return true
       if ((entry.blockers || []).length > 0) return true
-      return (protectIds || []).indexOf(entry.id) !== -1
+      return false
     }
 
-    function entryState(entry, off, protectIds) {
+    function entryState(entry, off) {
       if (entry.group) return { key: 'state.group', locked: true }
-      if ((protectIds || []).indexOf(entry.id) !== -1) return { key: 'state.protected', locked: true }
+      if (entry.protected) return { key: 'state.protected', locked: true }
       if ((entry.blockers || []).length > 0) {
         return { key: 'state.required', locked: true, count: entry.blockers.length }
       }
@@ -711,6 +712,17 @@ window.__ModuleLoader__.load({
       if (entry.disabled) return { key: 'state.profileOff', locked: true }
       if (entry.loaded) return { key: 'state.loaded', locked: false }
       return { key: 'state.idle', locked: false }
+    }
+
+    // A protected entry can still sit in the disabled list (a stale value, or one
+    // written straight through the API); gating refuses it, so report that instead
+    // of a plain success the user cannot act on.
+    function saveMessage(state, off) {
+      const entries = (state && state.entries) || []
+      const blocked = entries.some(function (entry) {
+        return entry.protected && off.indexOf(entry.id) !== -1
+      })
+      return blocked ? tt('hint.protected') : tt('notice.saved')
     }
 
     function StatePill(props) {
@@ -722,12 +734,11 @@ window.__ModuleLoader__.load({
     function PluginCard(props) {
       const group = props.group
       const off = props.off || []
-      const protectIds = props.protectIds || []
       const onSetDisabled = props.onSetDisabled
       const collapsed = props.collapsed
       const onToggleCollapsed = props.onToggleCollapsed
       const entries = group.entries || []
-      const switchable = entries.filter(function (entry) { return !isLocked(entry, protectIds) })
+      const switchable = entries.filter(function (entry) { return !isLocked(entry) })
       const offCount = switchable.filter(function (entry) { return off.indexOf(entry.id) !== -1 }).length
       const allOn = switchable.length === 0 || offCount === 0
       const title = group.pkg || '(internal)'
@@ -768,7 +779,7 @@ window.__ModuleLoader__.load({
         collapsed
           ? null
           : h('div', { style: { marginTop: 6 } }, entries.map(function (entry) {
-              const state = entryState(entry, off, protectIds)
+              const state = entryState(entry, off)
               return h('div', { key: entry.id, className: 'wg-entry', style: S.entryRow },
                 h('input', {
                   type: 'checkbox',
@@ -784,7 +795,12 @@ window.__ModuleLoader__.load({
                 }),
                 h('span', { className: 'wg-entry-name', style: { ...S.entryName, ...S.mono, fontSize: 11 } }, entry.name || entry.id),
                 h(StatePill, { state: state }))
-            })))
+            })),
+          entries.some(function (entry) { return entry.protected })
+            ? h('div', { className: 'wg-hint' }, tt('hint.protected'))
+            : entries.some(function (entry) { return !entry.protected && (entry.blockers || []).length > 0 })
+              ? h('div', { className: 'wg-hint' }, tt('hint.required'))
+              : null)
     }
 
     function PluginCards(props) {
@@ -796,7 +812,6 @@ window.__ModuleLoader__.load({
             key: group.pkg,
             group: group,
             off: props.off,
-            protectIds: props.protectIds,
             collapsed: props.collapsed.indexOf(group.pkg) !== -1,
             onToggleCollapsed: props.onToggleCollapsed,
             onSetDisabled: props.onSetDisabled,
@@ -947,7 +962,6 @@ window.__ModuleLoader__.load({
       const off = props.off || []
       const skills = props.skills
       const [explorerCount, setExplorerCount] = useState(null)
-      const protectIds = (state && state.protectIds) || []
       const [tab, setTab] = useState('plugins')
       const [filter, setFilter] = useState('community')
       // Official runtime bundles start collapsed: they are the host's own
@@ -1009,7 +1023,6 @@ window.__ModuleLoader__.load({
             h(PluginCards, {
               groups: visible,
               off: off,
-              protectIds: protectIds,
               collapsed: collapsed,
               onToggleCollapsed: onToggleCollapsed,
               onSetDisabled: props.onSetDisabled,
@@ -1272,7 +1285,7 @@ window.__ModuleLoader__.load({
                         const row = state.workspaces.find(function (item) { return item.workspaceId === selected })
                         if (!row || !row.armed) return send(ROUTE + '/arm', 'POST', { workspaceId: selected, armed: true })
                       })
-                  }, tt('notice.saved'))
+                  }, saveMessage(state, disabled))
                 } }, tt('action.save')),
               h('button', { className: 'wg-btn', style: S.btn, disabled: busy, onClick: function () {
                   run(function () { return send(ROUTE + '/capture', 'POST', { workspaceId: selected }) }, tt('notice.captured'))
@@ -1517,7 +1530,7 @@ window.__ModuleLoader__.load({
                     return send(ROUTE + '/arm', 'POST', { workspaceId: workspaceId, armed: true })
                   }
                 })
-            }, tt('notice.saved'))
+            }, saveMessage(state, off))
           },
         }, tt('action.save'))),
       state
