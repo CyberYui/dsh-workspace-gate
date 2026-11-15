@@ -23,7 +23,7 @@ const ROUTE = '/api/dsh-workspace-gate'
 const STATE_VERSION = 1
 
 /** Entries that must never be switched off by gating. */
-const BUILTIN_PROTECTED = ['dsh-base', 'dsh-web-app', 'workspace-gate']
+const BUILTIN_PROTECTED = ['dsh-base', 'dsh-web-app', 'workspace-gate', 'dsh-workspace-gate']
 
 export const Config = z.object({
   /**
@@ -86,12 +86,35 @@ async function writeState(file, state) {
   await rename(tmp, file)
 }
 
-function providedNames(entry) {
-  const names = []
-  if (entry.id) names.push(entry.id)
-  const pkg = entry.options && entry.options.name
-  if (pkg) names.push(pkg)
+/**
+ * Every spelling a loader row can be known by: the hierarchical id, the id
+ * without its include group, the package name, and the package name without
+ * its scope or subpath. Both the built-in protect list ('dsh-web-app',
+ * 'workspace-gate') and fiber.inject keys (the plugin's service name, which is
+ * the id segment after 'include:') are matched against this set.
+ */
+function candidateNames(id, pkg) {
+  const names = new Set()
+  if (id) {
+    names.add(id)
+    const bare = String(id).replace(/^include:/, '')
+    if (bare) names.add(bare)
+  }
+  if (pkg) {
+    const raw = String(pkg)
+    names.add(raw)
+    if (raw.charAt(0) === '@') {
+      const scope = raw.split('/')[1]
+      if (scope) names.add(scope)
+    } else {
+      names.add(raw.split('/')[0])
+    }
+  }
   return names
+}
+
+function providedNames(entry) {
+  return [...candidateNames(entry && entry.id, entry && entry.options && entry.options.name)]
 }
 
 /**
@@ -304,8 +327,20 @@ export function apply(ctx, config) {
     }
   }
 
-  function protect(id) {
-    return protectedIds.has(id)
+  /**
+   * True when a loader entry must never be switched off. Accepts a loader entry,
+   * an entryRows() row, or a bare id from the API: the built-in names are short
+   * plugin names ('workspace-gate', 'dsh-web-app'), while loader ids carry the
+   * include group prefix and package names carry a scope and subpath.
+   */
+  function protect(target) {
+    if (!target) return false
+    const pkg = typeof target === 'string' ? null : (target.options ? target.options.name : target.name)
+    const id = typeof target === 'string' ? target : target.id
+    for (const name of candidateNames(id, pkg)) {
+      if (protectedIds.has(name)) return true
+    }
+    return false
   }
 
   async function persist() {
@@ -326,12 +361,14 @@ export function apply(ctx, config) {
     for (const entry of entries) {
       const options = entry.options || {}
       if (options.group) continue
-      if (protect(entry.id)) continue
+      if (protect(entry)) continue
       const shouldDisable = wanted.has(entry.id)
-      if (shouldDisable && !ours.has(entry.id)) {
-        // Never adopt a plugin the profile itself switched off: re-enabling it
-        // later would silently override the user's cordis.patch.yml.
-        if (entry.disabled) continue
+      if (shouldDisable && !entry.disabled) {
+        // The loader still reports it on, so the switch is missing: either it
+        // was never applied or a profile recompose dropped it. Re-asserting
+        // here is what lets the 10s replay recover entries the loader rebuilt.
+        // An entry the profile itself switched off stays untouched, because
+        // adopting it would let release() override cordis.patch.yml later.
         const blockers = dependencyBlockers(entries, entry)
         if (blockers.length) {
           changes.push({ id: entry.id, action: 'disable', ok: false, blockedBy: blockers })
@@ -534,8 +571,14 @@ export function apply(ctx, config) {
         // Protected entries are never managed by gating, so they are not
         // written into the policy either; otherwise the UI would show them as
         // switched off while the loader keeps them on.
+        // Resolve each incoming id to its loader entry first: protection is
+        // decided on the package name, which a bare id does not carry.
+        const known = new Map()
+        for (const entry of loader.entries()) known.set(entry.id, entry)
         const ids = Array.isArray(body.ids)
-          ? body.ids.filter(function (item) { return typeof item === 'string' && !protect(item) })
+          ? body.ids.filter(function (item) {
+              return typeof item === 'string' && !protect(known.get(item) || item)
+            })
           : []
         if (!state.workspaces[body.workspaceId]) {
           state.workspaces[body.workspaceId] = { disabled: [], updatedAt: Date.now() }
@@ -557,7 +600,7 @@ export function apply(ctx, config) {
         const body = await readBody(request)
         if (typeof body.workspaceId !== 'string') return json({ ok: false, error: 'workspaceId is required' }, 400)
         const disabled = entryRows(loader)
-          .filter(function (row) { return !row.group && row.disabled && !protect(row.id) })
+          .filter(function (row) { return !row.group && row.disabled && !protect(row) })
           .map(function (row) { return row.id })
         if (!state.workspaces[body.workspaceId]) {
           state.workspaces[body.workspaceId] = { disabled: [], updatedAt: Date.now() }

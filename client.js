@@ -21,7 +21,7 @@
  * module loader under the package id below.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-workspace-gate',
+  id: '@cyberyui/dsh-workspace-gate',
   factory: (require) => {
     var module = { exports: {} }
     var exports = module.exports
@@ -73,6 +73,101 @@ window.__ModuleLoader__.load({
       return tag
     }
     ensureChipCss()
+    // ── panel surfaces (#panel-readability) ───────────────────────────────
+    // Same reason as the chip, taken one level up: the workspace list, the
+    // plugin/skill cards and the action bar all borrowed the host's
+    // --dsw-alias-bg-layer-* / -border-* tokens, and the wallpaper glass sheet
+    // rewrites exactly those into translucent recipes it has no reason to know
+    // about this panel. Pin opaque surfaces of our own and mark the source of
+    // each bundle with a coloured edge plus a text badge, so colour is never
+    // the only signal. The static palette is theme-invariant; only the neutral
+    // scale is re-picked per theme through the host's own dark marker.
+    const PANEL_CSS = [
+      '.wg-panel{background:var(--dsw-static-neutral-bluish-50,#f9fafb);border:1px solid rgba(128,128,128,.26);border-radius:10px}',
+      'body[data-ds-dark-theme] .wg-panel{background:var(--dsw-static-neutral-bluish-900,#1b1b1c);border-color:rgba(255,255,255,.14)}',
+      '.wg-wslist{display:flex;flex-direction:column;gap:4px}',
+      '.wg-ws{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;border:1px solid transparent;background:transparent;cursor:pointer}',
+      '.wg-ws:hover{background:var(--dsw-static-neutral-bluish-100,#ebedf0)}',
+      'body[data-ds-dark-theme] .wg-ws:hover{background:var(--dsw-static-neutral-bluish-800,#353638)}',
+      '.wg-ws--on,.wg-ws--on:hover{background:var(--dsw-static-neutral-bluish-150,#e9ecf2);border-color:rgba(128,128,128,.40)}',
+      'body[data-ds-dark-theme] .wg-ws--on,body[data-ds-dark-theme] .wg-ws--on:hover{background:var(--dsw-static-neutral-bluish-750,#43454a);border-color:rgba(255,255,255,.26)}',
+      '.wg-card{background:var(--dsw-static-neutral-bluish-00,#ffffff);border:1px solid rgba(128,128,128,.30);border-left:3px solid rgba(128,128,128,.42);border-radius:9px}',
+      'body[data-ds-dark-theme] .wg-card{background:var(--dsw-static-neutral-bluish-850,#2c2c2e);border-color:rgba(255,255,255,.14);border-left-color:rgba(255,255,255,.30)}',
+      '.wg-card--official{border-left-color:var(--dsw-static-green-500,#22c55e)}',
+      '.wg-card--community{border-left-color:var(--dsw-static-violet-600,#7c3aed)}',
+      '.wg-card--internal{border-left-color:rgba(128,128,128,.42)}',
+      '.wg-src{font-size:10px;padding:1px 6px;border-radius:999px;white-space:nowrap;border:1px solid transparent}',
+      '.wg-src--official{color:var(--dsw-static-green-900,#233c2c);background:var(--dsw-static-green-100,#e6faed)}',
+      'body[data-ds-dark-theme] .wg-src--official{color:var(--dsw-static-green-400,#4ed17e);background:var(--dsw-static-green-900,#233c2c)}',
+      '.wg-src--community{color:var(--dsw-static-violet-600,#7c3aed);background:rgba(124,58,237,.10)}',
+      'body[data-ds-dark-theme] .wg-src--community{color:var(--dsw-static-violet-400,#a78bfa);background:rgba(124,58,237,.22)}',
+      '.wg-src--internal{color:var(--dsw-static-neutral-bluish-600,#757a81);background:var(--dsw-static-neutral-bluish-100,#ebedf0)}',
+      'body[data-ds-dark-theme] .wg-src--internal{color:var(--dsw-static-neutral-bluish-300,#b4b9c0);background:var(--dsw-static-neutral-bluish-800,#353638)}',
+      '.wg-pill{font-size:10px;padding:1px 6px;border-radius:999px;white-space:nowrap;color:var(--dsw-static-neutral-bluish-600,#757a81);background:var(--dsw-static-neutral-bluish-100,#ebedf0);border:1px solid rgba(128,128,128,.26)}',
+      'body[data-ds-dark-theme] .wg-pill{color:var(--dsw-static-neutral-bluish-300,#b4b9c0);background:var(--dsw-static-neutral-bluish-800,#353638);border-color:rgba(255,255,255,.14)}',
+      '.wg-pill--on{color:var(--dsw-static-green-900,#233c2c);background:var(--dsw-static-green-100,#e6faed);border-color:transparent}',
+      'body[data-ds-dark-theme] .wg-pill--on{color:var(--dsw-static-green-400,#4ed17e);background:var(--dsw-static-green-900,#233c2c)}',
+      '.wg-hint{font-size:11px;line-height:1.5;color:var(--dsw-static-neutral-bluish-600,#757a81)}',
+      'body[data-ds-dark-theme] .wg-hint{color:var(--dsw-static-neutral-bluish-400,#adb2b8)}',
+      '.wg-banner{font-size:12px;padding:6px 8px;border-radius:7px;flex-shrink:0;background:var(--dsw-static-neutral-bluish-100,#ebedf0);border:1px solid rgba(128,128,128,.26)}',
+      'body[data-ds-dark-theme] .wg-banner{background:var(--dsw-static-neutral-bluish-850,#2c2c2e);border-color:rgba(255,255,255,.14)}',
+      '.wg-banner--error{color:var(--dsw-static-red-600,#b43a3a);background:var(--dsw-static-red-100,#fdecec);border-color:rgba(180,58,58,.34)}',
+      'body[data-ds-dark-theme] .wg-banner--error{color:var(--dsw-static-red-400,#f87171);background:var(--dsw-static-red-900,#3a1c1c);border-color:rgba(248,113,113,.34)}',
+      '.wg-banner--ok{color:var(--dsw-static-green-900,#233c2c);background:var(--dsw-static-green-100,#e6faed);border-color:rgba(35,60,44,.34)}',
+      'body[data-ds-dark-theme] .wg-banner--ok{color:var(--dsw-static-green-400,#4ed17e);background:var(--dsw-static-green-900,#233c2c)}',
+      '.wg-seg{display:inline-flex;padding:2px;gap:2px;border-radius:8px;flex-shrink:0;background:var(--dsw-static-neutral-bluish-100,#ebedf0);border:1px solid rgba(128,128,128,.30)}',
+      'body[data-ds-dark-theme] .wg-seg{background:var(--dsw-static-neutral-bluish-800,#353638);border-color:rgba(255,255,255,.14)}',
+      '.wg-seg-btn{font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--dsw-static-neutral-bluish-600,#757a81);cursor:pointer}',
+      'body[data-ds-dark-theme] .wg-seg-btn{color:var(--dsw-static-neutral-bluish-300,#b4b9c0)}',
+      '.wg-seg-btn--on{background:var(--dsw-static-neutral-bluish-00,#ffffff);color:var(--dsw-static-neutral-bluish-900,#1b1b1c);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.14)}',
+      'body[data-ds-dark-theme] .wg-seg-btn--on{background:var(--dsw-static-neutral-bluish-750,#43454a);color:var(--dsw-static-neutral-bluish-50,#f9fafb)}',
+      '.wg-btn{font-size:12px;padding:4px 10px;border-radius:7px;cursor:pointer;flex-shrink:0;background:var(--dsw-static-neutral-bluish-00,#ffffff);border:1px solid rgba(128,128,128,.34);color:var(--dsw-static-neutral-bluish-800,#353638)}',
+      'body[data-ds-dark-theme] .wg-btn{background:var(--dsw-static-neutral-bluish-800,#353638);border-color:rgba(255,255,255,.16);color:var(--dsw-static-neutral-bluish-100,#ebedf0)}',
+      '.wg-btn--primary{background:var(--dsw-static-green-500,#22c55e);border-color:transparent;color:#ffffff}',
+      'body[data-ds-dark-theme] .wg-btn--primary{background:var(--dsw-static-green-500,#22c55e);color:#08130c}',
+      '.wg-name{font-weight:500;color:var(--dsw-static-neutral-bluish-900,#1b1b1c);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      'body[data-ds-dark-theme] .wg-name{color:var(--dsw-static-neutral-bluish-50,#f9fafb)}',
+      '.wg-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;color:var(--dsw-static-neutral-bluish-600,#757a81);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      'body[data-ds-dark-theme] .wg-mono{color:var(--dsw-static-neutral-bluish-300,#b4b9c0)}',
+      '.wg-title{font-weight:600;font-size:15px;color:var(--dsw-static-neutral-bluish-900,#1b1b1c)}',
+      'body[data-ds-dark-theme] .wg-title{color:var(--dsw-static-neutral-bluish-50,#f9fafb)}',
+      '.wg-subtitle{color:var(--dsw-static-neutral-bluish-600,#757a81);font-size:12px;line-height:1.5;flex-shrink:0}',
+      'body[data-ds-dark-theme] .wg-subtitle{color:var(--dsw-static-neutral-bluish-400,#adb2b8)}',
+      '.wg-section{font-size:12px;font-weight:600;margin:10px 0 4px;flex-shrink:0;color:var(--dsw-static-neutral-bluish-700,#61666b)}',
+      'body[data-ds-dark-theme] .wg-section{color:var(--dsw-static-neutral-bluish-300,#b4b9c0)}',
+      '.wg-card-title{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;font-weight:600;color:var(--dsw-static-neutral-bluish-900,#1b1b1c);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      'body[data-ds-dark-theme] .wg-card-title{color:var(--dsw-static-neutral-bluish-50,#f9fafb)}',
+      '.wg-card-desc{font-size:11px;line-height:1.35;color:var(--dsw-static-neutral-bluish-600,#757a81);margin-top:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}',
+      'body[data-ds-dark-theme] .wg-card-desc{color:var(--dsw-static-neutral-bluish-400,#adb2b8)}',
+      '.wg-card-head{display:flex;align-items:center;gap:8px}',
+      '.wg-card-meta{display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap}',
+      '.wg-entry{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(128,128,128,.20)}',
+      'body[data-ds-dark-theme] .wg-entry{border-top-color:rgba(255,255,255,.10)}',
+      '.wg-entry-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.wg-chevron{font-size:10px;color:var(--dsw-static-neutral-bluish-500,#8b9097);width:12px;text-align:center;flex-shrink:0}',
+      'body[data-ds-dark-theme] .wg-chevron{color:var(--dsw-static-neutral-bluish-400,#adb2b8)}',
+      '.wg-grow{flex:1;min-width:0}',
+      '.wg-switch{flex-shrink:0;margin-top:2px;width:30px;height:16px;border-radius:8px;border:none;padding:0;cursor:pointer;background:var(--dsw-static-neutral-bluish-300,#b4b9c0)}',
+      '.wg-switch--on{background:var(--dsw-static-green-500,#22c55e)}',
+      '.wg-switch__thumb{display:block;width:12px;height:12px;border-radius:6px;background:#ffffff;margin-left:2px;transition:margin-left .12s ease}',
+      '.wg-switch--on .wg-switch__thumb{margin-left:16px}',
+      '.wg-diag{margin-top:10px;flex-shrink:0}',
+      '.wg-diag-body{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10px;color:var(--dsw-static-neutral-bluish-600,#757a81);white-space:pre-wrap;word-break:break-word;margin-top:4px}',
+      'body[data-ds-dark-theme] .wg-diag-body{color:var(--dsw-static-neutral-bluish-400,#adb2b8)}',
+    ].join('\n')
+    const ensurePanelCss = () => {
+      if (typeof document === 'undefined') return null
+      const TAG = 'dsh-workspace-gate/panel'
+      let tag = document.querySelector('style[data-plugin-css=' + JSON.stringify(TAG) + ']')
+      if (tag === null) {
+        tag = document.createElement('style')
+        tag.dataset.pluginCss = TAG
+        ;(document.head || document.documentElement).appendChild(tag)
+      }
+      if (tag.textContent !== PANEL_CSS) tag.textContent = PANEL_CSS
+      return tag
+    }
+    ensurePanelCss()
     // React throws #31 ("Objects are not valid as a React child") when a plain
     // object reaches the child list. Every field below comes from host JSON, so
     // one unexpected object would blank the whole panel. This wrapper keeps
@@ -136,6 +231,7 @@ window.__ModuleLoader__.load({
         'filter.official': 'Official',
         'badge.official': 'official',
         'badge.community': 'community',
+        'badge.internal': 'internal',
         'col.name': 'Name',
         'col.state': 'State',
         'col.entries': 'Entries',
@@ -217,6 +313,7 @@ window.__ModuleLoader__.load({
         'filter.official': '官方',
         'badge.official': '官方',
         'badge.community': '社区',
+        'badge.internal': '内部',
         'col.name': '名称',
         'col.state': '状态',
         'col.entries': '条目',
@@ -315,23 +412,23 @@ window.__ModuleLoader__.load({
       title: { fontWeight: 600, fontSize: 15 },
       grow: { flex: 1, minWidth: 0 },
       subtitle: { color: C.fgMuted, fontSize: 12, lineHeight: 1.5, flexShrink: 0 },
-      card: { border: '1px solid ' + C.border, borderRadius: 10, padding: 10 },
+      card: { borderRadius: 10, padding: 10 },
       row: { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid ' + C.border },
       rowLast: { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0' },
       name: { fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
       mono: { fontFamily: C.mono, fontSize: 11, color: C.fgMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-      pill: { fontSize: 10, padding: '1px 6px', borderRadius: 999, border: '1px solid ' + C.border, color: C.fgMuted, whiteSpace: 'nowrap' },
-      pillOn: { fontSize: 10, padding: '1px 6px', borderRadius: 999, background: C.accentSoft, color: C.accent, whiteSpace: 'nowrap' },
-      btn: { fontSize: 12, padding: '4px 10px', borderRadius: 7, border: '1px solid ' + C.borderStrong, background: C.bg, color: 'inherit', cursor: 'pointer', flexShrink: 0 },
-      btnPrimary: { fontSize: 12, padding: '4px 10px', borderRadius: 7, border: '1px solid transparent', background: C.accent, color: C.onAccent, cursor: 'pointer', flexShrink: 0 },
-      seg: { display: 'inline-flex', padding: 2, gap: 2, borderRadius: 8, border: '1px solid ' + C.border, background: C.bg2, flexShrink: 0 },
-      segBtn: { fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid transparent', background: 'transparent', color: C.fgMuted, cursor: 'pointer' },
-      segBtnOn: { fontSize: 11, padding: '2px 8px', borderRadius: 6, border: '1px solid transparent', background: C.bgSolid, color: C.fg, cursor: 'pointer', fontWeight: 500 },
+      pill: { fontSize: 10, padding: '1px 6px', borderRadius: 999, whiteSpace: 'nowrap' },
+      pillOn: { fontSize: 10, padding: '1px 6px', borderRadius: 999, whiteSpace: 'nowrap' },
+      btn: { fontSize: 12, padding: '4px 10px', borderRadius: 7, cursor: 'pointer', flexShrink: 0 },
+      btnPrimary: { fontSize: 12, padding: '4px 10px', borderRadius: 7, cursor: 'pointer', flexShrink: 0 },
+      seg: { display: 'inline-flex', padding: 2, gap: 2, borderRadius: 8, flexShrink: 0 },
+      segBtn: { fontSize: 11, padding: '2px 8px', borderRadius: 6, cursor: 'pointer' },
+      segBtnOn: { fontSize: 11, padding: '2px 8px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 },
       actions: { display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 },
       banner: { fontSize: 12, padding: '6px 8px', borderRadius: 7, flexShrink: 0 },
-      error: { color: C.danger },
-      notice: { color: C.success },
-      hint: { fontSize: 11, color: C.fgMuted, lineHeight: 1.5 },
+      error: {},
+      notice: {},
+      hint: { fontSize: 11, lineHeight: 1.5 },
       table: { width: '100%', borderCollapse: 'collapse' },
       th: { textAlign: 'left', fontSize: 11, color: C.fgMuted, fontWeight: 500, padding: '3px 6px 3px 0' },
       td: { padding: '3px 6px 3px 0', verticalAlign: 'top' },
@@ -339,15 +436,15 @@ window.__ModuleLoader__.load({
       section: { fontSize: 12, fontWeight: 600, margin: '10px 0 4px', flexShrink: 0 },
       cardHead: { display: 'flex', alignItems: 'center', gap: 8 },
       cardTitle: { fontFamily: C.mono, fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-      cardDesc: { fontSize: 11, lineHeight: 1.35, color: C.fgMuted, marginTop: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' },
+      cardDesc: { fontSize: 11, lineHeight: 1.35, marginTop: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' },
       cardVer: { fontSize: 10, color: C.fgMuted, fontFamily: C.mono },
       skillTh: { textAlign: 'left', fontSize: 11, color: C.fgMuted, fontWeight: 500, padding: '2px 6px 2px 0' },
       skillTd: { padding: '2px 6px 2px 0', verticalAlign: 'top', fontSize: 11, lineHeight: 1.35 },
       skillDesc: { padding: '2px 6px 2px 0', verticalAlign: 'top', fontSize: 11, lineHeight: 1.35, color: C.fgMuted },
       cardMeta: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' },
-      entryRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: '1px solid ' + C.border },
+      entryRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' },
       entryName: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-      chevron: { fontSize: 10, color: C.fgMuted, width: 12, textAlign: 'center', flexShrink: 0 },
+      chevron: { fontSize: 10, width: 12, textAlign: 'center', flexShrink: 0 },
       // Surface colours for the chip and its popover live in CHIP_CSS at
       // the top of this factory: the wallpaper glass sheet remaps the
       // --dsw-alias-bg-layer-* / -border-* tokens to translucent recipes, and
@@ -360,7 +457,7 @@ window.__ModuleLoader__.load({
       popTitle: { fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 230 },
       popPath: { fontFamily: C.mono, fontSize: 10, color: C.fgMuted, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 },
       diag: { marginTop: 10, flexShrink: 0 },
-      diagBody: { fontFamily: C.mono, fontSize: 10, color: C.fgMuted, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginTop: 4 },
+      diagBody: { fontFamily: C.mono, fontSize: 10, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginTop: 4 },
     }
 
     function PanelIcon(props) {
@@ -390,6 +487,27 @@ window.__ModuleLoader__.load({
       const source = String((skill && (skill.provider || skill.source)) || '')
       if (!source) return 'community'
       return source.indexOf('@deepseek-ai/') === 0 ? 'official' : 'community'
+    }
+
+    // Source of a bundle group / skill, mapped to the surface class and the
+    // badge text. Colour is never the only signal: the badge also says the
+    // source in words.
+    function cardClass(kind) {
+      if (kind === 'official') return 'wg-card wg-card--official'
+      if (kind === 'community') return 'wg-card wg-card--community'
+      return 'wg-card wg-card--internal'
+    }
+
+    function srcClass(kind) {
+      if (kind === 'official') return 'wg-src wg-src--official'
+      if (kind === 'community') return 'wg-src wg-src--community'
+      return 'wg-src wg-src--internal'
+    }
+
+    function srcLabel(kind) {
+      if (kind === 'official') return tt('badge.official')
+      if (kind === 'community') return tt('badge.community')
+      return tt('badge.internal')
     }
 
     function groupPackages(entries) {
@@ -598,7 +716,7 @@ window.__ModuleLoader__.load({
     function StatePill(props) {
       const state = props.state
       const label = state.count > 1 ? tt(state.key) + ' x' + state.count : tt(state.key)
-      return h('span', { style: state.key === 'state.loaded' ? S.pillOn : S.pill }, label)
+      return h('span', { className: state.key === 'state.loaded' ? 'wg-pill wg-pill--on' : 'wg-pill', style: state.key === 'state.loaded' ? S.pillOn : S.pill }, label)
     }
 
     function PluginCard(props) {
@@ -613,8 +731,8 @@ window.__ModuleLoader__.load({
       const offCount = switchable.filter(function (entry) { return off.indexOf(entry.id) !== -1 }).length
       const allOn = switchable.length === 0 || offCount === 0
       const title = group.pkg || '(internal)'
-      return h('div', { style: S.card },
-        h('div', { style: S.cardHead },
+      return h('div', { className: cardClass(group.kind), style: S.card },
+        h('div', { className: 'wg-card-head', style: S.cardHead },
           h('input', {
             type: 'checkbox',
             checked: allOn,
@@ -633,24 +751,25 @@ window.__ModuleLoader__.load({
               onSetDisabled(next)
             },
           }),
-          h('div', { style: { ...S.grow, minWidth: 0 } },
-            h('div', { style: S.cardTitle, title: title }, title),
-            group.description ? h('div', { style: S.cardDesc }, group.description) : null,
-            h('div', { style: S.cardMeta },
-              h('span', { style: S.pill }, group.kind === 'official' ? tt('badge.official') : tt('badge.community')),
-              group.version ? h('span', { style: { ...S.pill, fontFamily: C.mono } }, group.version) : null,
-              h('span', { style: S.pill }, entries.length + ' ' + tt('state.entries')),
-              offCount > 0 ? h('span', { style: S.pillOn }, offCount + ' ' + tt('state.disabled')) : null)),
+          h('div', { className: 'wg-grow', style: { ...S.grow, minWidth: 0 } },
+            h('div', { className: 'wg-card-title', title: title }, title),
+            group.description ? h('div', { className: 'wg-card-desc' }, group.description) : null,
+            h('div', { className: 'wg-card-meta', style: S.cardMeta },
+              h('span', { className: srcClass(group.kind) }, srcLabel(group.kind)),
+              group.version ? h('span', { className: 'wg-pill', style: { fontFamily: C.mono } }, group.version) : null,
+              h('span', { className: 'wg-pill' }, entries.length + ' ' + tt('state.entries')),
+              offCount > 0 ? h('span', { className: 'wg-pill wg-pill--on' }, offCount + ' ' + tt('state.disabled')) : null)),
           h('button', {
+            className: 'wg-btn',
             style: S.btn,
             title: collapsed ? '+' : '-',
             onClick: function () { onToggleCollapsed(group.pkg) },
-          }, h('span', { style: S.chevron }, collapsed ? '+' : '-'))),
+          }, h('span', { className: 'wg-chevron' }, collapsed ? '+' : '-'))),
         collapsed
           ? null
           : h('div', { style: { marginTop: 6 } }, entries.map(function (entry) {
               const state = entryState(entry, off, protectIds)
-              return h('div', { key: entry.id, style: S.entryRow },
+              return h('div', { key: entry.id, className: 'wg-entry', style: S.entryRow },
                 h('input', {
                   type: 'checkbox',
                   checked: off.indexOf(entry.id) === -1,
@@ -663,14 +782,14 @@ window.__ModuleLoader__.load({
                     onSetDisabled(next)
                   },
                 }),
-                h('span', { style: { ...S.entryName, ...S.mono, fontSize: 11 } }, entry.name || entry.id),
+                h('span', { className: 'wg-entry-name', style: { ...S.entryName, ...S.mono, fontSize: 11 } }, entry.name || entry.id),
                 h(StatePill, { state: state }))
             })))
     }
 
     function PluginCards(props) {
       const groups = props.groups || []
-      if (groups.length === 0) return h('div', { style: S.hint }, tt('empty.filter'))
+      if (groups.length === 0) return h('div', { className: 'wg-hint' }, tt('empty.filter'))
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
         groups.map(function (group) {
           return h(PluginCard, {
@@ -687,8 +806,8 @@ window.__ModuleLoader__.load({
 
     function SkillsCard(props) {
       const skills = props.skills
-      if (skills === null || skills === undefined) return h('div', { style: S.hint }, tt('checking'))
-      if (skills.length === 0) return h('div', { style: S.hint }, tt('empty.skills'))
+      if (skills === null || skills === undefined) return h('div', { className: 'wg-hint' }, tt('checking'))
+      if (skills.length === 0) return h('div', { className: 'wg-hint' }, tt('empty.skills'))
       const official = skills.filter(function (skill) { return kindOfSkill(skill) === 'official' })
       const community = skills.filter(function (skill) { return kindOfSkill(skill) !== 'official' })
       const renderRow = function (skill) {
@@ -735,8 +854,8 @@ window.__ModuleLoader__.load({
       }, [total, payload])
 
       if (payload === null) return h(SkillsCard, { skills: props.fallback })
-      if (payload === undefined) return h('div', { style: S.hint }, tt('explorer.loading'))
-      if (!groups.length) return h('div', { style: S.hint }, tt('explorer.empty'))
+      if (payload === undefined) return h('div', { className: 'wg-hint' }, tt('explorer.loading'))
+      if (!groups.length) return h('div', { className: 'wg-hint' }, tt('explorer.empty'))
 
       const hasPath = function (skill) { return typeof skill.path === 'string' && skill.path.length > 0 }
       const isEnabled = function (skill) {
@@ -762,14 +881,15 @@ window.__ModuleLoader__.load({
       }
 
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
-        notice ? h('div', { style: { ...S.hint, color: C.success } }, notice) : null,
-        error ? h('div', { style: { ...S.hint, color: C.danger } }, error) : null,
+        notice ? h('div', { className: 'wg-hint', style: { ...S.hint, color: C.success } }, notice) : null,
+        error ? h('div', { className: 'wg-hint', style: { ...S.hint, color: C.danger } }, error) : null,
         groups.map(function (group) {
           const key = group.key || group.title || 'group'
           const skills = Array.isArray(group.skills) ? group.skills : []
           const isCollapsed = !!collapsed[key]
-          return h('div', { key: key, style: S.card },
+          return h('div', { key: key, className: cardClass(group.kind), style: S.card },
             h('div', {
+              className: 'wg-card-head',
               style: { ...S.cardHead, cursor: 'pointer' },
               onClick: function () {
                 setCollapsed(function (prev) {
@@ -780,26 +900,28 @@ window.__ModuleLoader__.load({
                 })
               },
             },
-              h('span', { style: S.chevron }, isCollapsed ? '+' : '-'),
-              h('span', { style: { ...S.cardTitle, fontSize: 12 } }, group.title || key),
-              h('span', { style: { ...S.pill, fontSize: 10 } }, String(skills.length)),
-              h('span', { style: S.grow }),
+              h('span', { className: 'wg-chevron' }, isCollapsed ? '+' : '-'),
+              h('span', { className: 'wg-card-title', style: { ...S.cardTitle, fontSize: 12 } }, group.title || key),
+              h('span', { className: 'wg-pill', style: { fontSize: 10 } }, String(skills.length)),
+              h('span', { className: 'wg-grow', style: S.grow }),
+              h('span', { className: srcClass(group.kind), style: { marginLeft: 4 } }, srcLabel(group.kind)),
               group.hint
-                ? h('span', { style: { ...S.hint, fontSize: 10, flexShrink: 0, maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, group.hint)
+                ? h('span', { className: 'wg-hint', style: { ...S.hint, fontSize: 10, flexShrink: 0, maxWidth: '42%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, group.hint)
                 : null),
             isCollapsed
               ? null
               : h('div', { style: { marginTop: 4 } }, skills.map(function (skill) {
                   const enabled = isEnabled(skill)
                   const togglable = hasPath(skill) || skill.fileState === 'provider-file'
-                  return h('div', { key: skill.name + ':' + (skill.provider || skill.source || ''), style: { ...S.entryRow, alignItems: 'flex-start' } },
-                    h('div', { style: { ...S.grow, minWidth: 0 } },
+                  return h('div', { key: skill.name + ':' + (skill.provider || skill.source || ''), className: 'wg-entry', style: { ...S.entryRow, alignItems: 'flex-start' } },
+                    h('div', { className: 'wg-grow', style: { ...S.grow, minWidth: 0 } },
                       h('div', { style: { display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' } },
                         h('span', { style: { fontWeight: 500, fontSize: 12 } }, skill.name),
-                        skill.fileState ? h('span', { style: { ...S.pill, fontSize: 10 } }, tt('explorer.state.' + skill.fileState)) : null,
-                        skill.provider ? h('span', { style: { ...S.pill, fontSize: 10 } }, skill.provider) : null),
-                      skill.description ? h('div', { style: { ...S.skillDesc, marginTop: 2 } }, skill.description) : null,
-                      skill.whenToUse ? h('div', { style: { ...S.hint, fontSize: 10, marginTop: 1 } }, tt('explorer.when') + ': ' + skill.whenToUse) : null),
+                        skill.fileState ? h('span', { className: 'wg-pill', style: { fontSize: 10 } }, tt('explorer.state.' + skill.fileState)) : null,
+                        skill.provider ? h('span', { className: 'wg-pill', style: { fontSize: 10 } }, skill.provider) : null,
+                        h('span', { className: srcClass(kindOfSkill(skill)), style: { marginLeft: 2 } }, srcLabel(kindOfSkill(skill)))),
+                      skill.description ? h('div', { className: 'wg-card-desc', style: { ...S.skillDesc, marginTop: 2 } }, skill.description) : null,
+                      skill.whenToUse ? h('div', { className: 'wg-hint', style: { ...S.hint, fontSize: 10, marginTop: 1 } }, tt('explorer.when') + ': ' + skill.whenToUse) : null),
                     togglable
                       ? h('button', {
                           role: 'switch',
@@ -807,18 +929,10 @@ window.__ModuleLoader__.load({
                           disabled: busy === skill.name,
                           title: enabled ? tt('explorer.on') : tt('explorer.off'),
                           onClick: function () { if (!busy) toggle(skill, !enabled) },
-                          style: {
-                            flexShrink: 0, marginTop: 2, width: 30, height: 16, borderRadius: 8, border: 'none',
-                            padding: 0, cursor: busy === skill.name ? 'default' : 'pointer',
-                            background: enabled ? C.success : C.fgFaint,
-                          },
-                        }, h('span', {
-                          style: {
-                            display: 'block', width: 12, height: 12, borderRadius: 6, background: C.thumb,
-                            marginLeft: enabled ? 16 : 2, transition: 'margin-left .12s ease',
-                          },
-                        }))
-                      : h('span', { style: { ...S.pill, fontSize: 10, flexShrink: 0 } }, tt('explorer.locked')))
+                          className: 'wg-switch' + (enabled ? ' wg-switch--on' : ''),
+                          style: { cursor: busy === skill.name ? 'default' : 'pointer' },
+                        }, h('span', { className: 'wg-switch__thumb' }))
+                      : h('span', { className: 'wg-pill', style: { fontSize: 10, flexShrink: 0 } }, tt('explorer.locked')))
                 })))
         }))
     }
@@ -874,19 +988,19 @@ window.__ModuleLoader__.load({
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, flex: 1 } },
         h(DiagBlock, { info: diag }),
         h('div', { style: S.actions },
-          h('div', { style: S.seg },
-            h('button', { style: tab === 'plugins' ? S.segBtnOn : S.segBtn, onClick: function () { setTab('plugins') } },
+          h('div', { className: 'wg-seg', style: S.seg },
+            h('button', { className: 'wg-seg-btn' + (tab === 'plugins' ? ' wg-seg-btn--on' : ''), style: tab === 'plugins' ? S.segBtnOn : S.segBtn, onClick: function () { setTab('plugins') } },
               tt('tab.plugins') + (groups.length ? ' ' + groups.length : '')),
-            h('button', { style: tab === 'skills' ? S.segBtnOn : S.segBtn, onClick: function () { setTab('skills') } },
+            h('button', { className: 'wg-seg-btn' + (tab === 'skills' ? ' wg-seg-btn--on' : ''), style: tab === 'skills' ? S.segBtnOn : S.segBtn, onClick: function () { setTab('skills') } },
               tt('tab.skills') + (skillCount === null ? '' : ' ' + skillCount))),
           h('span', { style: S.grow }),
           tab === 'plugins'
-            ? h('div', { style: S.seg },
-                h('button', { style: filter === 'all' ? S.segBtnOn : S.segBtn, onClick: function () { setFilter('all') } }, tt('filter.all')),
-                h('button', { style: filter === 'community' ? S.segBtnOn : S.segBtn, onClick: function () { setFilter('community') } }, tt('filter.community') + ' ' + communityCount),
-                h('button', { style: filter === 'official' ? S.segBtnOn : S.segBtn, onClick: function () { setFilter('official') } }, tt('filter.official') + ' ' + officialCount))
+            ? h('div', { className: 'wg-seg', style: S.seg },
+                h('button', { className: 'wg-seg-btn' + (filter === 'all' ? ' wg-seg-btn--on' : ''), style: filter === 'all' ? S.segBtnOn : S.segBtn, onClick: function () { setFilter('all') } }, tt('filter.all')),
+                h('button', { className: 'wg-seg-btn' + (filter === 'community' ? ' wg-seg-btn--on' : ''), style: filter === 'community' ? S.segBtnOn : S.segBtn, onClick: function () { setFilter('community') } }, tt('filter.community') + ' ' + communityCount),
+                h('button', { className: 'wg-seg-btn' + (filter === 'official' ? ' wg-seg-btn--on' : ''), style: filter === 'official' ? S.segBtnOn : S.segBtn, onClick: function () { setFilter('official') } }, tt('filter.official') + ' ' + officialCount))
             : null),
-        h('div', { style: { ...S.hint, flexShrink: 0 } }, tt('hint.filter')),
+        h('div', { className: 'wg-hint', style: { ...S.hint, flexShrink: 0 } }, tt('hint.filter')),
         h('div', { style: S.scroll },
           // Both bodies stay mounted: the hidden one keeps its data warm so the
           // tab badge and the explorer's toggles are current the moment the
@@ -907,7 +1021,7 @@ window.__ModuleLoader__.load({
                   fallback: skills,
                   onCount: setExplorerCount,
                 })
-              : h('div', { style: S.card }, h(SkillsCard, { skills: skills })))))
+              : h('div', { className: 'wg-card', style: S.card }, h(SkillsCard, { skills: skills })))))
     }
 
     // ------------------------------------------------------------- diagnostics
@@ -928,9 +1042,9 @@ window.__ModuleLoader__.load({
       ]
       if (info.keys && info.keys.length) lines.push('  ' + info.keys.join(', '))
       lines.push(tt('diag.crash') + ': ' + (info.crash ? (info.crash.name + ': ' + info.crash.message) : tt('diag.none')))
-      return h('details', { style: S.diag },
+      return h('details', { className: 'wg-diag', style: S.diag },
         h('summary', { style: { fontSize: 11, color: C.fgMuted, cursor: 'pointer' } }, tt('diag.title')),
-        h('div', { style: S.diagBody }, lines.join('\n')))
+        h('div', { className: 'wg-diag-body', style: S.diagBody }, lines.join('\n')))
     }
 
     // ---------------------------------------------------------------- surfaces
@@ -997,8 +1111,8 @@ window.__ModuleLoader__.load({
       render() {
         const error = this.state && this.state.error
         if (error) {
-          return h('div', { style: S.root },
-            h('div', { style: S.header }, h(PanelIcon, { size: 18 }), h('span', { style: S.title }, tt('title'))),
+          return h('div', { className: 'wg-panel', style: S.root },
+            h('div', { style: S.header }, h(PanelIcon, { size: 18 }), h('span', { className: 'wg-title', style: S.title }, tt('title'))),
             h('div', { style: { ...S.banner, ...S.error } },
               tt('diag.panelCrash') + ': ' + (error.message || String(error))),
             h(DiagBlock, { info: { rawCount: undefined, liveCount: undefined, keys: [], crash: safeError(error) } }))
@@ -1007,11 +1121,12 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function PanelRoot() {
-      return h(PanelBoundary, null, h(Panel))
+    function PanelRoot(props) {
+      return h(PanelBoundary, null, h(Panel, { ctx: props && props.ctx }))
     }
 
-    function Panel() {
+    function Panel(props) {
+      const ctx = props && props.ctx
       const [state, setState] = useState(null)
       const [selected, setSelected] = useState('')
       const [disabled, setDisabled] = useState([])
@@ -1027,7 +1142,9 @@ window.__ModuleLoader__.load({
           setSelected(function (prev) {
             const workspaces = (payload && Array.isArray(payload.workspaces)) ? payload.workspaces : []
             if (prev && workspaces.some(function (row) { return row.workspaceId === prev })) return prev
-            return (payload && payload.activeWorkspaceId) || (workspaces[0] && workspaces[0].workspaceId) || ''
+            // The panel is opened from a workspace, so start on that one; only
+            // fall back to the gated workspace and then to the first row.
+            return currentWorkspaceId || (payload && payload.activeWorkspaceId) || (workspaces[0] && workspaces[0].workspaceId) || ''
           })
           setError('')
         } catch (err) {
@@ -1036,6 +1153,32 @@ window.__ModuleLoader__.load({
       }, [])
 
       useEffect(function () { load() }, [load])
+
+      // The workspace the shell is showing right now. uiWorkspace.selection is
+      // the host's persisted current-session store and workspaces.list maps
+      // sessions to workspaces; both are optional, so an absent service leaves
+      // currentWorkspaceId empty and the load() fallback above still applies.
+      const sessionId = useCurrentSessionId(ctx, undefined)
+      const workspaceItems = useWorkspaceItems(ctx)
+      const currentWorkspaceId = useMemo(function () {
+        if (!sessionId) return ''
+        const items = (workspaceItems && Array.isArray(workspaceItems.items)) ? workspaceItems.items : []
+        for (let i = 0; i < items.length; i += 1) {
+          const row = items[i]
+          if (row && Array.isArray(row.sessionIds) && row.sessionIds.indexOf(sessionId) !== -1) {
+            return row.workspaceId || ''
+          }
+        }
+        return ''
+      }, [sessionId, workspaceItems])
+
+      // Set once the reader picks a row by hand; after that the panel stays on
+      // their choice even if the shell moves to another workspace.
+      const userPicked = useRef(false)
+      useEffect(function () {
+        if (userPicked.current || !currentWorkspaceId) return
+        setSelected(currentWorkspaceId)
+      }, [currentWorkspaceId])
 
       const selectedPath = useMemo(function () {
         const rows = (state && Array.isArray(state.workspaces)) ? state.workspaces : []
@@ -1066,9 +1209,9 @@ window.__ModuleLoader__.load({
       }, [notice])
 
       if (!state) {
-        return h('div', { style: S.root },
-          h('div', { style: S.header }, h(PanelIcon, { size: 18 }), h('span', { style: S.title }, tt('title'))),
-          error ? h('div', { style: { ...S.banner, ...S.error } }, String(error)) : h('div', { style: S.hint }, tt('checking')))
+        return h('div', { className: 'wg-panel', style: S.root },
+          h('div', { style: S.header }, h(PanelIcon, { size: 18 }), h('span', { className: 'wg-title', style: S.title }, tt('title'))),
+          error ? h('div', { className: 'wg-banner wg-banner--error', style: { ...S.banner, ...S.error } }, String(error)) : h('div', { className: 'wg-hint' }, tt('checking')))
       }
 
       const workspaces = Array.isArray(state.workspaces) ? state.workspaces : []
@@ -1092,31 +1235,37 @@ window.__ModuleLoader__.load({
         }
       }
 
-      return h('div', { style: S.root },
+      return h('div', { className: 'wg-panel', style: S.root },
         h('div', { style: S.header },
           h(PanelIcon, { size: 18 }),
-          h('span', { style: S.title }, tt('title')),
+          h('span', { className: 'wg-title', style: S.title }, tt('title')),
           h('span', { style: S.grow }),
           h('button', { style: S.btn, onClick: function () { load() } }, tt('action.refresh'))),
-        h('div', { style: S.subtitle }, tt('subtitle')),
-        error ? h('div', { style: { ...S.banner, ...S.error } }, String(error)) : null,
-        notice ? h('div', { style: { ...S.banner, ...S.notice } }, String(notice)) : null,
+        h('div', { className: 'wg-subtitle', style: S.subtitle }, tt('subtitle')),
+        error ? h('div', { className: 'wg-banner wg-banner--error', style: { ...S.banner, ...S.error } }, String(error)) : null,
+        notice ? h('div', { className: 'wg-banner wg-banner--ok', style: { ...S.banner, ...S.notice } }, String(notice)) : null,
         h('div', { style: S.scroll },
-          h('div', { style: S.section }, tt('workspace') + ' (' + workspaces.length + ')'),
+          h('div', { className: 'wg-section' }, tt('workspace') + ' (' + workspaces.length + ')'),
           workspaces.length === 0
-            ? h('div', { style: S.hint }, tt('empty.workspaces'))
-            : workspaces.map(function (row) {
+            ? h('div', { className: 'wg-hint' }, tt('empty.workspaces'))
+            : h('div', { className: 'wg-wslist' }, workspaces.map(function (row) {
                 const active = row.workspaceId === selected
-                return h('div', { key: row.workspaceId, style: { ...S.rowLast, cursor: 'pointer', paddingLeft: 8, paddingRight: 8, borderRadius: 8, background: active ? C.bgHover : 'transparent' }, onClick: function () { setSelected(row.workspaceId) } },
-                  h('div', { style: { ...S.grow, minWidth: 0 } },
-                    h('div', { style: S.name }, row.title || row.workspaceId),
-                    h('div', { style: S.mono }, row.path)),
-                  row.armed ? h('span', { style: S.pillOn }, tt('armed')) : null,
-                  h('span', { style: S.pill }, row.status || 'ok'))
-              }),
-          h('div', { style: { ...S.card, marginTop: 10 } },
+                const title = row.title || row.workspaceId
+                return h('div', {
+                  key: row.workspaceId,
+                  className: 'wg-ws' + (active ? ' wg-ws--on' : ''),
+                  title: title + '\n' + (row.path || ''),
+                  onClick: function () { userPicked.current = true; setSelected(row.workspaceId) },
+                },
+                  h('div', { style: S.grow },
+                    h('div', { className: 'wg-name' }, title),
+                    h('div', { className: 'wg-mono' }, row.path)),
+                  row.armed ? h('span', { className: 'wg-pill wg-pill--on' }, tt('armed')) : null,
+                  h('span', { className: 'wg-pill' }, row.status || 'ok'))
+              })),
+          h('div', { className: 'wg-card', style: { ...S.card, marginTop: 10 } },
             h('div', { style: S.actions },
-              h('button', { style: S.btnPrimary, disabled: busy, onClick: function () {
+              h('button', { className: 'wg-btn wg-btn--primary', style: S.btnPrimary, disabled: busy, onClick: function () {
                   run(function () {
                     return send(ROUTE + '/disabled', 'PUT', { workspaceId: selected, ids: disabled })
                       .then(function () {
@@ -1125,22 +1274,22 @@ window.__ModuleLoader__.load({
                       })
                   }, tt('notice.saved'))
                 } }, tt('action.save')),
-              h('button', { style: S.btn, disabled: busy, onClick: function () {
+              h('button', { className: 'wg-btn', style: S.btn, disabled: busy, onClick: function () {
                   run(function () { return send(ROUTE + '/capture', 'POST', { workspaceId: selected }) }, tt('notice.captured'))
                 } }, tt('action.capture')),
-              h('button', { style: S.btn, disabled: busy, onClick: function () {
+              h('button', { className: 'wg-btn', style: S.btn, disabled: busy, onClick: function () {
                   run(function () { return send(ROUTE + '/disabled', 'PUT', { workspaceId: selected, ids: [] }) }, tt('notice.cleared'))
                 } }, tt('action.clear')),
               activeWorkspace && activeWorkspace.workspaceId === selected
-                ? h('button', { style: S.btn, disabled: busy, onClick: function () {
+                ? h('button', { className: 'wg-btn', style: S.btn, disabled: busy, onClick: function () {
                     run(function () { return send(ROUTE + '/arm', 'POST', { workspaceId: selected, armed: false }) }, tt('notice.unarmed'))
                   } }, tt('action.unarm'))
                 : null,
-              h('span', { style: S.grow }),
-              h('button', { style: S.btn, disabled: busy, onClick: function () {
+              h('span', { className: 'wg-grow', style: S.grow }),
+              h('button', { className: 'wg-btn', style: S.btn, disabled: busy, onClick: function () {
                   run(function () { return send(ROUTE + '/apply', 'POST') }, tt('notice.applied'))
                 } }, tt('action.refresh'))),
-            h('div', { style: { ...S.hint, margin: '6px 0' } }, tt('hint.gating')),
+            h('div', { className: 'wg-hint', style: { ...S.hint, margin: '6px 0' } }, tt('hint.gating')),
             h(GateBody, {
               state: state,
               off: disabled,
@@ -1326,14 +1475,15 @@ window.__ModuleLoader__.load({
           : S.popover,
       },
       h('div', { style: S.popHeader },
-        h('span', { style: S.popTitle }, (row && row.title) || workspaceId),
+        h('span', { className: 'wg-title', style: S.popTitle }, (row && row.title) || workspaceId),
         h('span', { style: S.grow }),
-        h('button', { style: S.btn, onClick: function () { setOpen(false) } }, tt('chip.close'))),
-      h('div', { style: S.popPath }, workspaceId),
-      error ? h('div', { style: { ...S.banner, ...S.error } }, String(error)) : null,
-      notice ? h('div', { style: { ...S.banner, ...S.notice } }, String(notice)) : null,
+        h('button', { className: 'wg-btn', style: S.btn, onClick: function () { setOpen(false) } }, tt('chip.close'))),
+      h('div', { className: 'wg-mono', style: S.popPath }, workspaceId),
+      error ? h('div', { className: 'wg-banner wg-banner--error', style: { ...S.banner, ...S.error } }, String(error)) : null,
+      notice ? h('div', { className: 'wg-banner wg-banner--ok', style: { ...S.banner, ...S.notice } }, String(notice)) : null,
       h('div', { style: S.actions },
         h('button', {
+          className: armed ? 'wg-btn' : 'wg-btn wg-btn--primary',
           style: armed ? S.btn : S.btnPrimary,
           disabled: busy,
           onClick: function () {
@@ -1343,6 +1493,7 @@ window.__ModuleLoader__.load({
           },
         }, armed ? tt('action.unarm') : tt('action.arm')),
         h('button', {
+          className: 'wg-btn',
           style: S.btn,
           disabled: busy,
           title: tt('chip.follow.hint'),
@@ -1354,6 +1505,7 @@ window.__ModuleLoader__.load({
         }, followOn ? tt('chip.follow.on') : tt('chip.follow.off')),
         h('span', { style: S.grow }),
         h('button', {
+          className: 'wg-btn wg-btn--primary',
           style: S.btnPrimary,
           disabled: busy,
           onClick: function () {
@@ -1376,7 +1528,7 @@ window.__ModuleLoader__.load({
             explorerPath: workspacePath,
             onSetDisabled: setDisabled,
           })
-        : h('div', { style: S.hint }, tt('checking'))
+        : h('div', { className: 'wg-hint' }, tt('checking'))
       )
 
       return h('div', { ref: anchorRef, style: { position: 'relative', display: 'inline-flex', alignItems: 'center' } },
@@ -1389,7 +1541,7 @@ window.__ModuleLoader__.load({
           h(PanelIcon, { size: 13 }),
           h('span', { style: S.chipText }, (row && row.title) || workspaceId),
           h('span', { style: S.chipMeta }, tt('skills') + ' ' + (skills === undefined || skills === null ? '...' : skills.length) + ' / ' + tt('plugins') + ' ' + visibleCount),
-          armed ? h('span', { style: S.pillOn }, tt('armed')) : null),
+          armed ? h('span', { className: 'wg-pill wg-pill--on' }, tt('armed')) : null),
         open ? (createPortal ? createPortal(popover, document.body) : popover) : null)
     }
 

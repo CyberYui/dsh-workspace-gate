@@ -1,9 +1,9 @@
-# dsh-workspace-gate
+# @cyberyui/dsh-workspace-gate
 # Row id is also the settings namespace. The row name must be the real package
 # name, otherwise the loader cannot resolve it.
 - insert:
     - id: workspace-gate
-      name: dsh-workspace-gate
+      name: '@cyberyui/dsh-workspace-gate'
       config:
         # Safety lock. Gating is inert until a workspace is armed with a
         # non-empty disabled list, so leaving this on is safe.
