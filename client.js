@@ -261,6 +261,7 @@ window.__ModuleLoader__.load({
         'notice.applied': 'Applied.',
         'error.load': 'Could not load state.',
         'error.save': 'Could not save.',
+        'error.agentActive': 'An agent is running; the loader is process-wide, so the change waits for it to finish.',
         'empty.workspaces': 'No workspace registered yet.',
         'empty.skills': 'No skill visible from this workspace directory.',
         'empty.plugins': 'No plugin entry loaded.',
@@ -343,6 +344,7 @@ window.__ModuleLoader__.load({
         'notice.applied': '已应用。',
         'error.load': '无法读取状态。',
         'error.save': '保存失败。',
+        'error.agentActive': '有对话正在运行；loader 是进程级的，这次切换会等它结束后再生效。',
         'empty.workspaces': '还没有登记任何工作区。',
         'empty.skills': '该工作区目录下看不到技能。',
         'empty.plugins': '没有已加载的插件条目。',
@@ -380,6 +382,14 @@ window.__ModuleLoader__.load({
     }
 
     let tt = function (key) { return key }
+
+    // The routes answer rejections with machine codes ('agent-active'). Show the
+    // reader-facing sentence instead of leaking the raw code into the banner.
+    function describeError(error, tt) {
+      const raw = String((error && error.message) || error || '')
+      if (raw === 'agent-active' || raw.indexOf('agent-active') !== -1) return tt('error.agentActive')
+      return raw
+    }
 
     // Host theme tokens. DSH defines this alias set on `body` (light) and on
     // `body[data-ds-dark-theme]` (dark), so a value that resolves through them
@@ -719,10 +729,19 @@ window.__ModuleLoader__.load({
     // of a plain success the user cannot act on.
     function saveMessage(state, off) {
       const entries = (state && state.entries) || []
-      const blocked = entries.some(function (entry) {
-        return entry.protected && off.indexOf(entry.id) !== -1
+      const offIds = off || []
+      // Both refusal reasons the host enforces: a protected entry, and an entry
+      // whose service another loaded entry injects. Reporting a plain success
+      // for either would tell the user a switch happened when it did not.
+      const protectedHit = entries.some(function (entry) {
+        return entry.protected && offIds.indexOf(entry.id) !== -1
       })
-      return blocked ? tt('hint.protected') : tt('notice.saved')
+      if (protectedHit) return tt('hint.protected')
+      const requiredHit = entries.some(function (entry) {
+        return !entry.protected && (entry.blockers || []).length > 0 && offIds.indexOf(entry.id) !== -1
+      })
+      if (requiredHit) return tt('hint.required')
+      return tt('notice.saved')
     }
 
     function StatePill(props) {
@@ -891,7 +910,7 @@ window.__ModuleLoader__.load({
           setNotice(skill.name + (enabled ? ' ' + tt('explorer.enabled') : ' ' + tt('explorer.disabled')))
           setReloadKey(function (value) { return value + 1 })
         }).catch(function (err) {
-          setError(String((err && err.message) || err))
+          setError(describeError(err, tt))
         }).finally(function () { setBusy('') })
       }
 
@@ -1161,7 +1180,7 @@ window.__ModuleLoader__.load({
           })
           setError('')
         } catch (err) {
-          setError(String(err.message || err))
+          setError(describeError(err, tt))
         }
       }, [])
 
@@ -1235,14 +1254,14 @@ window.__ModuleLoader__.load({
         try {
           const payload = await task()
           if (payload && payload.deferred === 'agent-active') {
-            setError('An agent is running; the loader is process-wide, so the change waits for it to finish.')
+            setError(tt('error.agentActive'))
           } else if (message) {
             setNotice(message)
           }
           await load()
           return payload
         } catch (err) {
-          setError(String(err.message || err))
+          setError(describeError(err, tt))
         } finally {
           setBusy(false)
         }
@@ -1349,7 +1368,7 @@ window.__ModuleLoader__.load({
           setError('')
           return payload
         } catch (err) {
-          setError(String(err.message || err))
+          setError(describeError(err, tt))
           return null
         }
       }, [])
@@ -1468,13 +1487,13 @@ window.__ModuleLoader__.load({
         try {
           const payload = await task()
           if (payload && payload.deferred === 'agent-active') {
-            setError('An agent is running; the loader is process-wide, so the change waits for it to finish.')
+            setError(tt('error.agentActive'))
           } else if (message) {
             setNotice(message)
           }
           await load()
         } catch (err) {
-          setError(String(err.message || err))
+          setError(describeError(err, tt))
         } finally {
           setBusy(false)
         }

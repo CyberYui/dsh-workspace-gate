@@ -89,9 +89,10 @@ async function writeState(file, state) {
 /**
  * Every spelling a loader row can be known by: the hierarchical id, the id
  * without its include group, the package name, and the package name without
- * its scope or subpath. Both the built-in protect list ('dsh-web-app',
- * 'workspace-gate') and fiber.inject keys (the plugin's service name, which is
- * the id segment after 'include:') are matched against this set.
+ * its scope or subpath. The built-in protect list ('dsh-web-app',
+ * 'workspace-gate') is matched against this set; service *dependency* matching
+ * uses providedServices() instead, because fiber.inject keys are service names
+ * and never equal an id or package name.
  */
 function candidateNames(id, pkg) {
   const names = new Set()
@@ -118,11 +119,47 @@ function providedNames(entry) {
 }
 
 /**
+ * The service names this entry provides. cordis records every ctx.provide() on
+ * the owning fiber ('fiber.provisions'), and that is the only namespace that
+ * matches what bundles declare: inject lists *service* names ('webServer',
+ * 'wallpaperEngineHost', ...), while the entry id and the npm package name live
+ * in a different namespace, so comparing against them never fires.
+ */
+function providedServices(entry) {
+  const names = []
+  const fiber = entry && entry.fiber
+  if (!fiber) return names
+  const provisions = fiber.provisions
+  if (provisions && typeof provisions[Symbol.iterator] === 'function') {
+    try {
+      for (const impl of provisions) {
+        if (impl && typeof impl.name === 'string' && impl.name) names.push(impl.name)
+      }
+    } catch {
+      /* a hostile provision must not break the panel */
+    }
+  }
+  // Fallback for a host whose fiber does not expose provisions: the reflect
+  // store keeps the same declarations under '{ type: "service" }'.
+  if (names.length === 0 && fiber.ctx && fiber.ctx.reflect && fiber.ctx.reflect.props) {
+    try {
+      for (const pair of Object.entries(fiber.ctx.reflect.props)) {
+        if (pair[1] && pair[1].type === 'service') names.push(pair[0])
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return names
+}
+
+/**
  * Entries that inject a service this entry provides. Disabling a required entry
  * would leave those fibers with an unresolved inject, so gating refuses.
  */
 function dependencyBlockers(entries, target, cache) {
-  const provided = new Set(providedNames(target))
+  const provided = new Set(providedServices(target))
+  for (const name of providedNames(target)) provided.add(name)
   if (provided.size === 0) return []
   const blockers = []
   for (const other of entries) {
@@ -580,11 +617,19 @@ export function apply(ctx, config) {
         // switched off while the loader keeps them on.
         // Resolve each incoming id to its loader entry first: protection is
         // decided on the package name, which a bare id does not carry.
+        const all = [...loader.entries()]
         const known = new Map()
-        for (const entry of loader.entries()) known.set(entry.id, entry)
+        for (const entry of all) known.set(entry.id, entry)
+        // Blocked entries are refused for the same reason: applyGating() would
+        // reject them anyway, so keeping one in the policy would only make the
+        // UI report a switch that never took effect.
+        const blockerCache = new Map()
         const ids = Array.isArray(body.ids)
           ? body.ids.filter(function (item) {
-              return typeof item === 'string' && !protect(known.get(item) || item)
+              if (typeof item !== 'string') return false
+              const entry = known.get(item)
+              if (protect(entry || item)) return false
+              return dependencyBlockers(all, entry || null, blockerCache).length === 0
             })
           : []
         if (!state.workspaces[body.workspaceId]) {
