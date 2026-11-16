@@ -124,6 +124,14 @@ function providedNames(entry) {
  * matches what bundles declare: inject lists *service* names ('webServer',
  * 'wallpaperEngineHost', ...), while the entry id and the npm package name live
  * in a different namespace, so comparing against them never fires.
+ *
+ * There is deliberately no fallback to 'ctx.reflect.props'. In cordis that
+ * object is ReflectService.props — the whole application's declared-property
+ * table, keyed by service name — not this entry's. Reading it here made every
+ * bundle that provides nothing appear to provide every service in the process,
+ * so nearly the entire plugin list came back 'required by N others' and the
+ * panel greyed out almost everything (regression 2026-11-16, fixed by removing
+ * the fallback).
  */
 function providedServices(entry) {
   const names = []
@@ -137,17 +145,6 @@ function providedServices(entry) {
       }
     } catch {
       /* a hostile provision must not break the panel */
-    }
-  }
-  // Fallback for a host whose fiber does not expose provisions: the reflect
-  // store keeps the same declarations under '{ type: "service" }'.
-  if (names.length === 0 && fiber.ctx && fiber.ctx.reflect && fiber.ctx.reflect.props) {
-    try {
-      for (const pair of Object.entries(fiber.ctx.reflect.props)) {
-        if (pair[1] && pair[1].type === 'service') names.push(pair[0])
-      }
-    } catch {
-      /* ignore */
     }
   }
   return names

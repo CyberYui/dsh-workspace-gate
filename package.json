@@ -1,6 +1,6 @@
 {
   "name": "@cyberyui/dsh-workspace-gate",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
   "description": "Per-workspace plugin and skill inventory, with optional per-workspace plugin gating.",
   "license": "MIT",
