@@ -114,10 +114,6 @@ function candidateNames(id, pkg) {
   return names
 }
 
-function providedNames(entry) {
-  return [...candidateNames(entry && entry.id, entry && entry.options && entry.options.name)]
-}
-
 /**
  * The service names this entry provides. cordis records every ctx.provide() on
  * the owning fiber ('fiber.provisions'), and that is the only namespace that
@@ -156,7 +152,6 @@ function providedServices(entry) {
  */
 function dependencyBlockers(entries, target, cache) {
   const provided = new Set(providedServices(target))
-  for (const name of providedNames(target)) provided.add(name)
   if (provided.size === 0) return []
   const blockers = []
   for (const other of entries) {
@@ -194,7 +189,7 @@ function kindOf(name) {
   return String(name).indexOf('@deepseek-ai/') === 0 ? 'official' : 'community'
 }
 
-function entryRows(loader, allowed, details, isProtected) {
+function entryRows(loader, allowed, details, isProtected, profileOff) {
   const entries = [...loader.entries()]
   // Object.keys(fiber.inject) per pair is O(n^2) key allocations; hoist it.
   const injectCache = new Map()
@@ -220,6 +215,10 @@ function entryRows(loader, allowed, details, isProtected) {
       group: Boolean(options.group),
       loaded: entry.fiber !== undefined && !entry.disabled,
       disabled: Boolean(entry.disabled),
+      // True when cordis.patch.yml — not this plugin — switched the entry off.
+      // The label matters: "off (profile)" and "off (this workspace)" are
+      // different promises, and the loader reports both as entry.disabled.
+      profileOff: Boolean(profileOff && profileOff.has(entry.id)),
       blockers: dependencyBlockers(entries, entry, injectCache),
       // Same predicate applyGating() uses, so the panel cannot offer a switch the
       // host would silently refuse.
@@ -229,7 +228,7 @@ function entryRows(loader, allowed, details, isProtected) {
   return rows
 }
 
-async function workspaceRows(registry, state) {
+async function workspaceRows(registry, state, knownIds) {
   const rows = []
   let list = []
   try {
@@ -249,13 +248,18 @@ async function workspaceRows(registry, state) {
       status = 'unknown'
     }
     const record = state.workspaces[workspace.id]
+    const disabled = record ? record.disabled.slice() : []
     rows.push({
       workspaceId: workspace.id,
       path: workspace.path,
       title: workspace.title,
       status: status,
       armed: state.activeWorkspaceId === workspace.id,
-      disabled: record ? record.disabled.slice() : [],
+      disabled: disabled,
+      // Ids the policy names that no loader entry has any more (a plugin was
+      // renamed or removed). They never take effect, so the panel says so
+      // instead of reporting a switch that is not real.
+      stale: knownIds ? disabled.filter(function (id) { return !knownIds.has(id) }) : [],
       updatedAt: record ? record.updatedAt : 0,
     })
   }
@@ -309,6 +313,43 @@ export function apply(ctx, config) {
   }
 
   /**
+   * Ids the profile itself switched off in cordis.patch.yml.
+   *
+   * The loader reports `entry.disabled` for both causes and offers no way to
+   * tell them apart, so /capture would otherwise adopt a plugin the user
+   * deliberately turned off in their profile. That is not cosmetic: the policy
+   * is what applyGating() enforces, so adopting it means the user's own
+   * cordis.patch.yml edit gets silently undone on the next arm. The patch file
+   * is a flat `- id:` list, so a line scan is enough; cached by mtime.
+   */
+  const profileOffCache = { mtime: 0, ids: null }
+  function profileDisabledIds() {
+    let dir = null
+    try { dir = ctx.get('profileContext')?.dir ?? null } catch { dir = null }
+    if (!dir) return new Set()
+    try {
+      const file = join(dir, 'cordis.patch.yml')
+      const mtime = statSync(file).mtimeMs
+      if (profileOffCache.ids && profileOffCache.mtime === mtime) return profileOffCache.ids
+      const ids = new Set()
+      let current = null
+      for (const line of readFileSync(file, 'utf8').split('\n')) {
+        const top = /^-\s+id:\s*(.+?)\s*$/.exec(line)
+        if (top) {
+          current = top[1].replace(/^['"]|['"]$/g, '')
+          continue
+        }
+        if (current && /^\s+disabled:\s*true\s*(?:#.*)?$/.test(line)) ids.add(current)
+      }
+      profileOffCache.mtime = mtime
+      profileOffCache.ids = ids
+      return ids
+    } catch {
+      return new Set()
+    }
+  }
+
+  /**
    * A few bundles ship no npm description at all. aegis is a multi-host method
    * pack, so its package.json is pure metadata. Without a fallback its card
    * would show a bare package name where every other row has a sentence.
@@ -322,18 +363,39 @@ export function apply(ctx, config) {
    * description, so this is what lets the UI say what a plugin actually does
    * instead of repeating its name.
    */
+  /**
+   * Same mtime discipline as profileBundles(): /state is polled every 10s and
+   * the panel renders on every poll, so re-reading ~25 package.json files per
+   * poll was 25 reads plus 25 JSON parses for a value that only changes when
+   * the user installs something. stat() is cheap; the parse is not.
+   */
+  const packageCache = new Map()
   function packageDetails(dir, names) {
     const details = new Map()
     if (!dir || !names) return details
     for (const name of names) {
+      const file = join(dir, 'node_modules', name, 'package.json')
+      let mtime = 0
+      try { mtime = statSync(file).mtimeMs } catch { /* runtime-provided bundle: not on profile disk */ }
+      const cached = packageCache.get(name)
+      if (cached && cached.dir === dir && cached.mtime === mtime) {
+        if (cached.found) details.set(name, { version: cached.version, description: cached.description })
+        continue
+      }
+      if (!mtime) {
+        packageCache.set(name, { dir: dir, mtime: 0, found: false, version: '', description: '' })
+        continue
+      }
       try {
-        const raw = JSON.parse(readFileSync(join(dir, 'node_modules', name, 'package.json'), 'utf8'))
+        const raw = JSON.parse(readFileSync(file, 'utf8'))
         const fromNpm = typeof raw.description === 'string' ? raw.description : ''
-        details.set(name, {
-          version: typeof raw.version === 'string' ? raw.version : '',
-          description: fromNpm || DESCRIPTION_FALLBACK[name] || '',
-        })
-      } catch { /* runtime-provided bundle: not on profile disk */ }
+        const version = typeof raw.version === 'string' ? raw.version : ''
+        const description = fromNpm || DESCRIPTION_FALLBACK[name] || ''
+        packageCache.set(name, { dir: dir, mtime: mtime, found: true, version: version, description: description })
+        details.set(name, { version: version, description: description })
+      } catch {
+        packageCache.set(name, { dir: dir, mtime: mtime, found: false, version: '', description: '' })
+      }
     }
     return details
   }
@@ -345,18 +407,34 @@ export function apply(ctx, config) {
    * inert rather than breaking the bundle.
    */
   let agentRegistry = null
+  /**
+   * `ctx.inject` resolves its service asynchronously, so the callback can run
+   * after apply() has returned and leave `agentRegistry` null — which silently
+   * disarms the 409 guard that keeps gating away from a running turn. Ask for
+   * the service directly too, and re-ask on every check, so a registry that
+   * arrives late is still picked up.
+   */
+  function agents() {
+    if (!agentRegistry && typeof ctx.get === 'function') {
+      try { agentRegistry = ctx.get('agents') ?? null } catch { /* not registered yet */ }
+    }
+    return agentRegistry
+  }
   try {
     if (typeof ctx.inject === 'function') {
       ctx.inject(['agents'], (agentCtx) => {
         agentRegistry = agentCtx.get('agents') ?? agentCtx.agents ?? null
       })
+    } else {
+      agents()
     }
   } catch (error) {
     console.warn('[workspace-isolate] agent registry unavailable:', error?.message || error)
   }
 
   function runningAgents() {
-    if (!agentRegistry || typeof agentRegistry.list !== 'function') return []
+    const registry = agents()
+    if (!registry || typeof registry.list !== 'function') return []
     try {
       return agentRegistry.list().filter(function (agent) { return agent && agent.status === 'running' })
     } catch {
@@ -384,11 +462,16 @@ export function apply(ctx, config) {
     return false
   }
 
+  /** Last state-file write failure, surfaced through /state so a lost policy is visible. */
+  let writeError = null
+
   async function persist() {
     try {
       await writeState(stateFile, state)
+      writeError = null
     } catch (error) {
-      console.warn('[workspace-isolate] cannot write state file:', error.message)
+      writeError = String(error?.message || error)
+      console.warn('[workspace-isolate] cannot write state file:', writeError)
     }
   }
 
@@ -399,10 +482,16 @@ export function apply(ctx, config) {
     const ours = applied.get(workspaceId) || new Set()
     const changes = []
     const entries = [...loader.entries()]
+    const profileOff = profileDisabledIds()
     for (const entry of entries) {
       const options = entry.options || {}
       if (options.group) continue
       if (protect(entry)) continue
+      // The profile owns this switch (cordis.patch.yml says disabled). Never
+      // adopt it: `ours` is exactly what release() re-enables, so adopting a
+      // profile-disabled entry would let a later disarm switch it back on and
+      // silently override the user's own file.
+      if (profileOff.has(entry.id)) continue
       const shouldDisable = wanted.has(entry.id)
       if (shouldDisable && !entry.disabled) {
         // The loader still reports it on, so the switch is missing: either it
@@ -464,9 +553,6 @@ export function apply(ctx, config) {
    * Arm or disarm one workspace. Only one workspace is armed at a time, because
    * the loader is process-wide: arming applies that workspace's policy to the
    * whole process, and switching releases the previous workspace first.
-   */
-  /**
-   * Arm or disarm one workspace.
    *
    * Refused while any agent is running: the loader is process-wide, so flipping
    * plugin state mid-turn could remove a tool or skill the running turn is about
@@ -524,14 +610,22 @@ export function apply(ctx, config) {
 
   async function snapshot() {
     const bundles = profileBundles()
+    const profileOff = profileDisabledIds()
+    const known = new Set()
+    for (const entry of loader.entries()) known.add(entry.id)
+    const workspaces = await workspaceRows(ctx.workspaceRegistry, state, known)
     return {
       gatingEnabled: Boolean(config.gatingEnabled),
       autoFollow: Boolean(state.autoFollow),
       activeWorkspaceId: state.activeWorkspaceId,
       runningAgents: runningAgents().length,
       protectIds: Array.from(protectedIds),
-      entries: entryRows(loader, bundles.names, packageDetails(bundles.dir, bundles.names), protect),
-      workspaces: await workspaceRows(ctx.workspaceRegistry, state),
+      entries: entryRows(loader, bundles.names, packageDetails(bundles.dir, bundles.names), protect, profileOff),
+      workspaces: workspaces,
+      // How many policy ids no loader entry has. Non-zero means a plugin was
+      // renamed or removed and the policy is promising switches it cannot do.
+      policyStale: workspaces.reduce(function (total, row) { return total + row.stale.length }, 0),
+      lastWriteError: writeError,
     }
   }
 
@@ -544,6 +638,9 @@ export function apply(ctx, config) {
   }
 
   const connection = ctx.get('connection') ?? ctx.connection
+  /** Diagnostic-dump throttle: signature of the last payload written, and when. */
+  let dumpSig = ''
+  let dumpAt = 0
   const routes = [
     {
       path: ROUTE + '/state',
@@ -555,7 +652,22 @@ export function apply(ctx, config) {
         // payload, so keep the last snapshot on disk for offline inspection.
         // Written beside the state file so a test with its own dataFile cannot
         // touch the real profile.
-        try { await writeFile(stateFile + '.dump.json', JSON.stringify(snap)) } catch { /* ignore */ }
+        //
+        // The panel polls every 10s for as long as it is open, so writing on
+        // every response rewrites a full snapshot — every workspace's absolute
+        // path included — forever. Write on change, plus a slow heartbeat.
+        const sig = JSON.stringify({
+          a: snap.activeWorkspaceId,
+          g: snap.gatingEnabled,
+          w: snap.workspaces.map(function (row) { return [row.workspaceId, row.disabled.length, row.stale.length] }),
+          e: snap.entries.length,
+        })
+        const now = Date.now()
+        if (sig !== dumpSig || now - dumpAt > 120000) {
+          try { await writeFile(stateFile + '.dump.json', JSON.stringify(snap)) } catch { /* ignore */ }
+          dumpSig = sig
+          dumpAt = now
+        }
         return json(snap)
       },
     },
@@ -621,24 +733,39 @@ export function apply(ctx, config) {
         // reject them anyway, so keeping one in the policy would only make the
         // UI report a switch that never took effect.
         const blockerCache = new Map()
+        const ignored = []
         const ids = Array.isArray(body.ids)
           ? body.ids.filter(function (item) {
               if (typeof item !== 'string') return false
+              // An id with no loader entry can never be switched: it is a typo,
+              // or a plugin that was renamed or uninstalled after the policy was
+              // written. Storing it would make the panel promise a switch that
+              // does not exist, so drop it and report it back.
               const entry = known.get(item)
-              if (protect(entry || item)) return false
-              return dependencyBlockers(all, entry || null, blockerCache).length === 0
+              if (!entry) { ignored.push(item); return false }
+              if (protect(entry)) return false
+              return dependencyBlockers(all, entry, blockerCache).length === 0
             })
           : []
+        // Entries the profile itself switched off belong to cordis.patch.yml, not
+        // to this policy. Keeping one here would let applyGating() turn it back
+        // off after the user re-enabled it in their profile.
+        const profileOff = profileDisabledIds()
+        const adoptable = ids.filter(function (id) {
+          if (!profileOff.has(id)) return true
+          ignored.push(id)
+          return false
+        })
         if (!state.workspaces[body.workspaceId]) {
           state.workspaces[body.workspaceId] = { disabled: [], updatedAt: Date.now() }
         }
-        state.workspaces[body.workspaceId].disabled = ids
+        state.workspaces[body.workspaceId].disabled = adoptable
         state.workspaces[body.workspaceId].updatedAt = Date.now()
         await persist()
         const changes = state.activeWorkspaceId === body.workspaceId
           ? await applyGating(body.workspaceId)
           : []
-        return json({ ok: true, changes: changes, state: await snapshot() })
+        return json({ ok: true, ignored: ignored, changes: changes, state: await snapshot() })
       },
     },
     {
@@ -648,8 +775,16 @@ export function apply(ctx, config) {
       fetch: async function (request) {
         const body = await readBody(request)
         if (typeof body.workspaceId !== 'string') return json({ ok: false, error: 'workspaceId is required' }, 400)
-        const disabled = entryRows(loader, null, null, protect)
-          .filter(function (row) { return !row.group && row.disabled && !protect(row) })
+        const profileOff = profileDisabledIds()
+        const disabled = entryRows(loader, null, null, protect, profileOff)
+          .filter(function (row) {
+            if (row.group || !row.disabled || protect(row)) return false
+            // The profile turned this one off, not the user's per-workspace
+            // policy. Capturing it would make applyGating() fight
+            // cordis.patch.yml, which is the file the user edits on purpose.
+            if (profileOff.has(row.id)) return false
+            return true
+          })
           .map(function (row) { return row.id })
         if (!state.workspaces[body.workspaceId]) {
           state.workspaces[body.workspaceId] = { disabled: [], updatedAt: Date.now() }

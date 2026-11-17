@@ -1,6 +1,6 @@
 {
   "name": "@cyberyui/dsh-workspace-isolate",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "description": "Per-workspace plugin and skill inventory, with per-workspace plugin isolation.",
   "license": "MIT",
@@ -46,5 +46,9 @@
         "@deepseek-ai/dsh-client-ui-layout"
       ]
     }
+  },
+  "scripts": {
+    "test": "node test/host-regression.mjs",
+    "verify": "node test/host-regression.mjs"
   }
 }

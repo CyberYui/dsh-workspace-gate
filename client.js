@@ -281,6 +281,8 @@ window.__ModuleLoader__.load({
         'error.load': 'Could not load state.',
         'error.save': 'Could not save.',
         'error.agentActive': 'An agent is running; the loader is process-wide, so the change waits for it to finish.',
+        'warn.stale': '{n} saved switch(es) match no plugin any more. Remove and save again to clear them.',
+        'warn.write': 'Could not write the plugin data file: {error}',
         'empty.workspaces': 'No workspace registered yet.',
         'empty.skills': 'No skill visible from this workspace directory.',
         'empty.plugins': 'No plugin entry loaded.',
@@ -364,6 +366,8 @@ window.__ModuleLoader__.load({
         'error.load': '无法读取状态。',
         'error.save': '保存失败。',
         'error.agentActive': '有对话正在运行；loader 是进程级的，这次切换会等它结束后再生效。',
+        'warn.stale': '有 {n} 个已保存的开关已经找不到对应插件。清空后重新保存即可移除。',
+        'warn.write': '写入插件数据文件失败：{error}',
         'empty.workspaces': '还没有登记任何工作区。',
         'empty.skills': '该工作区目录下看不到技能。',
         'empty.plugins': '没有已加载的插件条目。',
@@ -638,13 +642,11 @@ window.__ModuleLoader__.load({
             unsubscribe = selection.subscribe(read)
           }
         } catch { /* optional service */ }
-        // Backstop: the snapshot store is an in-memory read, so a slow poll
-        // costs nothing and keeps the chip correct on a host whose store does
-        // not expose subscribe.
-        const timer = setInterval(read, 1000)
+        // subscribe() is the channel: the store announces every change. The
+        // 1s poll this used to run meant one extra React state update per second
+        // for the life of the panel on a host that already pushes.
         return function () {
           alive = false
-          clearInterval(timer)
           try { unsubscribe() } catch { /* ignore */ }
         }
       }, [ctx])
@@ -738,7 +740,10 @@ window.__ModuleLoader__.load({
         return { key: 'state.required', locked: true, count: entry.blockers.length }
       }
       if (off.indexOf(entry.id) !== -1) return { key: 'state.disabled', locked: false }
-      if (entry.disabled) return { key: 'state.profileOff', locked: true }
+      // The host says which switch it is. Without the flag every disabled row
+      // read "off (profile)", including rows this plugin had turned off.
+      if (entry.profileOff) return { key: 'state.profileOff', locked: true }
+      if (entry.disabled) return { key: 'state.disabled', locked: false }
       if (entry.loaded) return { key: 'state.loaded', locked: false }
       return { key: 'state.idle', locked: false }
     }
@@ -1341,6 +1346,14 @@ window.__ModuleLoader__.load({
                   run(function () { return send(ROUTE + '/apply', 'POST') }, tt('notice.applied'))
                 } }, tt('action.refresh'))),
             h('div', { className: 'wg-hint', style: { ...S.hint, margin: '6px 0' } }, tt('hint.gating')),
+            state && state.policyStale
+              ? h('div', { className: 'wg-banner wg-banner--error', style: { ...S.banner, ...S.error } },
+                  tt('warn.stale').replace('{n}', String(state.policyStale)))
+              : null,
+            state && state.lastWriteError
+              ? h('div', { className: 'wg-banner wg-banner--error', style: { ...S.banner, ...S.error } },
+                  tt('warn.write').replace('{error}', String(state.lastWriteError)))
+              : null,
             h(GateBody, {
               state: state,
               off: disabled,
