@@ -1,5 +1,5 @@
 /**
- * dsh-workspace-gate - client half.
+ * dsh-workspace-isolate - client half.
  *
  * Two surfaces over the same inventory:
  *  - a sidebar panel: pick ANY workspace, see its plugins and skills, switch
@@ -21,7 +21,7 @@
  * module loader under the package id below.
  */
 window.__ModuleLoader__.load({
-  id: '@cyberyui/dsh-workspace-gate',
+  id: '@cyberyui/dsh-workspace-isolate',
   factory: (require) => {
     var module = { exports: {} }
     var exports = module.exports
@@ -62,7 +62,7 @@ window.__ModuleLoader__.load({
     ].join('\n')
     const ensureChipCss = () => {
       if (typeof document === 'undefined') return null
-      const TAG = 'dsh-workspace-gate/chip'
+      const TAG = 'dsh-workspace-isolate/chip'
       let tag = document.querySelector('style[data-plugin-css=' + JSON.stringify(TAG) + ']')
       if (tag === null) {
         tag = document.createElement('style')
@@ -160,7 +160,7 @@ window.__ModuleLoader__.load({
     ].join('\n')
     const ensurePanelCss = () => {
       if (typeof document === 'undefined') return null
-      const TAG = 'dsh-workspace-gate/panel'
+      const TAG = 'dsh-workspace-isolate/panel'
       let tag = document.querySelector('style[data-plugin-css=' + JSON.stringify(TAG) + ']')
       if (tag === null) {
         tag = document.createElement('style')
@@ -191,7 +191,7 @@ window.__ModuleLoader__.load({
             json: safeString(JSON.stringify(child)).slice(0, 600),
             at: new Date().toISOString(),
           }
-          window.__workspaceGateChildBug = bug
+          window.__workspaceIsolateChildBug = bug
           postDiag({ kind: 'child-bug', bug: bug })
         } catch { /* diagnostics must never break rendering */ }
         children[i] = '[object ' + ((child.constructor && child.constructor.name) || 'Object') + ']'
@@ -200,7 +200,7 @@ window.__ModuleLoader__.load({
     }
     const { useCallback, useEffect, useMemo, useRef, useState } = React
 
-    const NS = 'dsh-workspace-gate'
+    const NS = 'dsh-workspace-isolate'
     // Portals need react-dom, which the DSH client module loader registers just
     // like react. Detected rather than assumed so a host without it degrades to
     // the in-header popover instead of failing to load.
@@ -209,19 +209,19 @@ window.__ModuleLoader__.load({
       const ReactDOM = require('react-dom')
       if (ReactDOM && typeof ReactDOM.createPortal === 'function') createPortal = ReactDOM.createPortal
     } catch { createPortal = null }
-    const PANEL_ID = 'workspace-gate'
+    const PANEL_ID = 'workspace-isolate'
     const PANEL_ORDER = 95
-    const CHIP_ID = 'workspace-gate-chip'
+    const CHIP_ID = 'workspace-isolate-chip'
     const CHIP_ORDER = 5
     const HEADER_SLOT = 'conversation.session.header.utilities'
-    const ROUTE = 'api/dsh-workspace-gate'
+    const ROUTE = 'api/dsh-workspace-isolate'
 
     const DICT = {
       en: {
-        'meta.title': 'Workspace gate',
+        'meta.title': 'Workspace Isolate',
         'meta.description': 'Per-workspace plugin and skill inventory.',
-        'entry.label': 'Workspace gate',
-        'title': 'Workspace gate',
+        'entry.label': 'Workspace Isolate',
+        'title': 'Workspace Isolate',
         'subtitle': 'Plugins and skills visible to each workspace.',
         'workspace': 'Workspace',
         'path': 'Path',
@@ -301,10 +301,10 @@ window.__ModuleLoader__.load({
         'explorer.state.virtual': 'virtual',
       },
       zh: {
-        'meta.title': '工作区门控',
+        'meta.title': '工作区隔离',
         'meta.description': '按工作区查看插件与技能，并可按工作区关闭插件。',
-        'entry.label': '工作区门控',
-        'title': '工作区门控',
+        'entry.label': '工作区隔离',
+        'title': '工作区隔离',
         'subtitle': '每个工作区能看到哪些插件与技能。',
         'workspace': '工作区',
         'path': '路径',
@@ -1097,7 +1097,7 @@ window.__ModuleLoader__.load({
           if (!alive) return
           let settled
           try {
-            const slots = window.__workspaceGateSlots
+            const slots = window.__workspaceIsolateSlots
             const raw = slots && typeof slots.entries === 'function' ? slots.entries(PANEL_SLOT_KEY) : []
             const live = slots && typeof slots.entriesOfSlot === 'function' ? slots.entriesOfSlot(PANEL_SLOT_KEY) : []
             settled = {
@@ -1109,7 +1109,7 @@ window.__ModuleLoader__.load({
             liveKeys: (Array.isArray(live) ? live : []).map(function (entry) {
               return (entry && entry.options && entry.options.key) || '?'
             }),
-            crash: window.__workspaceGateCrash || null,
+            crash: window.__workspaceIsolateCrash || null,
             }
           } catch (error) {
             settled = { rawCount: undefined, liveCount: undefined, keys: [], liveKeys: [], crash: safeError(error) }
@@ -1140,7 +1140,7 @@ window.__ModuleLoader__.load({
       componentDidCatch(error) {
         const crash = safeError(error) || { name: 'Error', message: 'unknown' }
         crash.at = new Date().toISOString()
-        try { window.__workspaceGateCrash = crash } catch { /* ignore */ }
+        try { window.__workspaceIsolateCrash = crash } catch { /* ignore */ }
         postDiag({ kind: 'panel-crash', crash: crash })
       }
       render() {
@@ -1588,30 +1588,30 @@ window.__ModuleLoader__.load({
           try {
             return ctx.locale.register(NS, DICT)
           } catch (error) {
-            console.warn('[workspace-gate] locale registration failed:', error)
+            console.warn('[workspace-isolate] locale registration failed:', error)
             return () => {}
           }
         },
-        'workspace-gate: dictionaries',
+        'workspace-isolate: dictionaries',
       )
 
       try {
         const bound = ctx.locale.bind(NS)
         tt = (key) => bound(key)
       } catch (error) {
-        console.warn('[workspace-gate] locale bind failed:', error)
+        console.warn('[workspace-isolate] locale bind failed:', error)
       }
 
       try {
         const slots = ctx.get && ctx.get('slots') ? ctx.get('slots') : ctx.slots
         if (!slots) {
-          console.warn('[workspace-gate] slots service unavailable; surfaces not registered')
+          console.warn('[workspace-isolate] slots service unavailable; surfaces not registered')
           return
         }
 
         // Expose the registry for the panel's diagnostics block, and record the
         // first entry crash the shell reports. Both are best-effort.
-        try { window.__workspaceGateSlots = slots } catch { /* ignore */ }
+        try { window.__workspaceIsolateSlots = slots } catch { /* ignore */ }
         try {
           ctx.effect(function () {
             if (typeof slots.onEntryError !== 'function') return function () {}
@@ -1624,12 +1624,12 @@ window.__ModuleLoader__.load({
                 error: safeError(error),
                 at: new Date().toISOString(),
               }
-              try { window.__workspaceGateCrash = crash } catch { /* ignore */ }
+              try { window.__workspaceIsolateCrash = crash } catch { /* ignore */ }
               postDiag({ kind: 'entry-error', crash: crash })
             })
-          }, 'workspace-gate: entry errors')
+          }, 'workspace-isolate: entry errors')
         } catch (error) {
-          console.warn('[workspace-gate] entry-error hook unavailable:', error)
+          console.warn('[workspace-isolate] entry-error hook unavailable:', error)
         }
 
         slots.inject('sidebar.panellist', () =>
@@ -1684,7 +1684,7 @@ window.__ModuleLoader__.load({
                   liveKeys: (Array.isArray(live) ? live : []).map(function (entry) {
                     return (entry && entry.options && entry.options.key) || '?'
                   }),
-                  crash: window.__workspaceGateCrash || null,
+                  crash: window.__workspaceIsolateCrash || null,
                 },
               })
             } catch (error) {
@@ -1696,7 +1696,7 @@ window.__ModuleLoader__.load({
         } catch { /* ignore */ }
         postDiag({ kind: 'apply', surfaces: ['sidebar.panellist', 'main', HEADER_SLOT] })
       } catch (error) {
-        console.warn('[workspace-gate] surface registration failed:', error)
+        console.warn('[workspace-isolate] surface registration failed:', error)
         postDiag({ kind: 'apply-failed', crash: safeError(error) })
       }
     }

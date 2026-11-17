@@ -1,14 +1,14 @@
-# @cyberyui/dsh-workspace-gate
+# @cyberyui/dsh-workspace-isolate
 # Row id is also the settings namespace. The row name must be the real package
 # name, otherwise the loader cannot resolve it.
 - insert:
-    - id: workspace-gate
-      name: '@cyberyui/dsh-workspace-gate'
+    - id: workspace-isolate
+      name: '@cyberyui/dsh-workspace-isolate'
       config:
         # Safety lock. Gating is inert until a workspace is armed with a
         # non-empty disabled list, so leaving this on is safe.
         gatingEnabled: true
         # Extra entry ids that may never be switched off by gating.
-        # Core entries (dsh-base, dsh-web-app, workspace-gate) are always
+        # Core entries (dsh-base, dsh-web-app, workspace-isolate) are always
         # protected in code and do not need to be repeated here.
         protectIds: []

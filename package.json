@@ -1,16 +1,16 @@
 {
-  "name": "@cyberyui/dsh-workspace-gate",
-  "version": "0.1.7",
+  "name": "@cyberyui/dsh-workspace-isolate",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Per-workspace plugin and skill inventory, with optional per-workspace plugin gating.",
+  "description": "Per-workspace plugin and skill inventory, with per-workspace plugin isolation.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CyberYui/dsh-workspace-gate.git"
+    "url": "git+https://github.com/CyberYui/dsh-workspace-isolate.git"
   },
-  "homepage": "https://github.com/CyberYui/dsh-workspace-gate#readme",
+  "homepage": "https://github.com/CyberYui/dsh-workspace-isolate#readme",
   "bugs": {
-    "url": "https://github.com/CyberYui/dsh-workspace-gate/issues"
+    "url": "https://github.com/CyberYui/dsh-workspace-isolate/issues"
   },
   "keywords": [
     "dsh",

@@ -1,57 +1,50 @@
-# dsh-workspace-gate
+# dsh-workspace-isolate
 
-Per-workspace plugin and skill inventory for [DeepSeek Harness](https://github.com/deepseek-ai),
-with optional per-workspace plugin gating.
+按工作区查看插件与技能，并可按工作区真正「隔离」（关闭）插件。
 
-The DSH loader keeps **one process-global plugin set**. Plugins are not loaded per
-workspace, so "workspace A disables plugin X while workspace B keeps it" cannot exist
-as two simultaneous states. This plugin therefore stores **one policy per workspace**
-and applies the policy of the workspace you are currently in, deferring the switch
-while any agent is still running a turn.
+> 2026-11-17 更名：原 `@cyberyui/dsh-workspace-gate`，显示名「工作区门控」；
+> 新包名 `@cyberyui/dsh-workspace-isolate`，显示名「工作区隔离」。
 
-## What it does
+## 这个插件做什么
 
-- **Inventory** — every installed bundle with its real version, description, and an
-  official / community badge, read from the profile's `package.json` and each
-  package's own manifest (not from a hardcoded list).
-- **Skills** — the skill registry for the current workspace, rendered compactly.
-  When `@linxin666/dsh-client-ui-skill-explorer` is present, the tab talks to its
-  `api/dsh-skill-explorer/list` endpoint and offers the **real switches**
-  (`set-enabled` rewrites the `disable-model-invocation` frontmatter,
-  `set-provider-enabled` for provider-file skills). Skills that are `virtual` and
-  have no path are shown read-only, matching the explorer's own `canToggle`.
-- **Gating** — per-workspace disabled-entry list. Applied on demand; never while an
-  agent is running.
-- **Two surfaces** — a sidebar panel (`sidebar.panellist`) and a persistent chip in
-  the session header (`conversation.session.header.utilities`), so the inventory
-  travels with the workspace instead of living in a global sidebar.
+- **侧边栏面板**：列出每个工作区当前实际加载的插件与技能，带来源徽章（官方 / 社区 / 内部）。
+- **会话头部 chip**：点一下即可对当前工作区启用门控。
+- **真·隔离**：`loader.update(entry.id, { disabled: true })` 直接关掉 cordis 条目，
+  不是只对模型隐藏——省的是内存与启动开销。
+- **受保护条目**（`dsh-base` / `dsh-web-app` / 本插件）与**被其他条目依赖**的条目不可关闭。
+- **技能开关**：文件型技能写 `disable-model-invocation`；插件自带技能写 provider 开关。
 
-## Safety
+## 安装
 
-`gatingEnabled` is a default-on lock, but gating is **inert** until a workspace is
-armed with a non-empty disabled list. Core entries (`dsh-base`, `dsh-web-app`,
-`workspace-gate`) are always protected in code, and `protectIds` adds more.
-
-`/arm` and `/follow` return `409 agent-active` when `ctx.agents.list()` reports
-any agent with `status === 'running'`. This is the same invariant the DSH market's
-drain enforces: plugin files must not be replaced or unmounted while an agent can
-still execute a turn against them.
-
-## Install
+在 profile 的 `package.json` 里加一条依赖：
 
 ```json
-{
-  "dependencies": { "dsh-workspace-gate": "file:../dsh-workspace-gate" }
-}
+"@cyberyui/dsh-workspace-isolate": "file:D:/DSH_Assets/DSH_Plugins/dsh-workspace-isolate"
 ```
 
-Then add `dsh-workspace-gate` to `dsh.profile.bundles`.
+并把 `@cyberyui/dsh-workspace-isolate` 加进 `dsh.profile.bundles`，然后：
 
-## Develop
-
-```bash
-node --input-type=module --check < client.js
-node --input-type=module --check < index.js
+```
+dsh plugin --profile desktop install
 ```
 
-The client bundle is plain `window.__ModuleLoader__.load({...})` — no build step.
+## 同类插件（互指）
+
+- [M1r0er/dsh-workspace-gate](https://github.com/M1r0er/dsh-workspace-gate)
+  （npm 包名 `dsh-workspace-gate`）做的是 **token 层**收窄：插件照常加载，
+  只对模型隐藏工具与提示词段，省的是每轮输入 token。
+  本插件是 **加载层** 真关停，省内存与启动开销，另外还能开关技能。
+  两者层级不同，可以同时安装（包名不冲突）。
+
+## 数据
+
+`~/.dsh/dsh-workspace-isolate/workspaces.json`
+（v0.2.0 起；更早版本在 `~/.dsh/dsh-workspace-gate/`）。
+
+## 防崩溃
+
+- 面板有 `PanelBoundary`（`getDerivedStateFromError` / `componentDidCatch`）：
+  面板自己崩了只在面板内显示，不拖垮宿主。
+- `h()` 拦截 React #31（把对象当子节点）→ 占位符 + 上报 `diag.log`。
+- `useSlotDiag()` 定期写 `diag.log`，便于事后定位。
+- 主机 `applyGating()` 有依赖阻断与受保护名单，不会关掉被依赖或核心条目。

@@ -1,12 +1,12 @@
 /**
- * dsh-workspace-gate - host half.
+ * dsh-workspace-isolate - host half.
  *
  * Lists the plugins and skills visible to each DSH workspace, and (optionally)
  * gates plugins per workspace.
  *
  * Persistence: this plugin NEVER writes cordis.patch.yml (that file belongs to
  * the user and to the profile). The mapping lives in the plugin's own data file,
- * <home>/dsh-workspace-gate/workspaces.json, and is re-applied on boot and on a
+ * <home>/dsh-workspace-isolate/workspaces.json, and is re-applied on boot and on a
  * slow timer so it survives a profile recompose (HMR).
  */
 import { readFileSync, statSync } from 'node:fs'
@@ -15,15 +15,15 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import z from '@deepseek-ai/schemastery'
 
-export const name = 'workspace-gate'
+export const name = 'workspace-isolate'
 
 export const inject = ['loader', 'workspaceRegistry', 'skills', 'connection']
 
-const ROUTE = '/api/dsh-workspace-gate'
+const ROUTE = '/api/dsh-workspace-isolate'
 const STATE_VERSION = 1
 
 /** Entries that must never be switched off by gating. */
-const BUILTIN_PROTECTED = ['dsh-base', 'dsh-web-app', 'workspace-gate', 'dsh-workspace-gate']
+const BUILTIN_PROTECTED = ['dsh-base', 'dsh-web-app', 'workspace-isolate', 'dsh-workspace-isolate']
 
 export const Config = z.object({
   /**
@@ -34,7 +34,7 @@ export const Config = z.object({
   gatingEnabled: z.boolean().default(true),
   /** Extra entry ids that may never be disabled by gating. */
   protectIds: z.array(z.string()).default([]),
-  /** Overrides the state file location. Empty = <home>/dsh-workspace-gate/workspaces.json */
+  /** Overrides the state file location. Empty = <home>/dsh-workspace-isolate/workspaces.json */
   dataFile: z.string().default(''),
 })
 
@@ -73,7 +73,7 @@ function readState(file) {
     return normalizeState(JSON.parse(readFileSync(file, 'utf8')))
   } catch (error) {
     if (error && error.code !== 'ENOENT') {
-      console.warn('[workspace-gate] cannot read state file:', error.message)
+      console.warn('[workspace-isolate] cannot read state file:', error.message)
     }
     return emptyState()
   }
@@ -90,7 +90,7 @@ async function writeState(file, state) {
  * Every spelling a loader row can be known by: the hierarchical id, the id
  * without its include group, the package name, and the package name without
  * its scope or subpath. The built-in protect list ('dsh-web-app',
- * 'workspace-gate') is matched against this set; service *dependency* matching
+ * 'workspace-isolate') is matched against this set; service *dependency* matching
  * uses providedServices() instead, because fiber.inject keys are service names
  * and never equal an id or package name.
  */
@@ -271,7 +271,7 @@ function json(data, status) {
 
 export function apply(ctx, config) {
   const home = ctx.get('profileContext')?.home ?? process.env.DSH_HOME ?? join(homedir(), '.dsh')
-  const stateFile = config.dataFile || join(home, 'dsh-workspace-gate', 'workspaces.json')
+  const stateFile = config.dataFile || join(home, 'dsh-workspace-isolate', 'workspaces.json')
   const loader = ctx.loader
   const protectedIds = new Set(BUILTIN_PROTECTED.concat(config.protectIds || []))
 
@@ -352,7 +352,7 @@ export function apply(ctx, config) {
       })
     }
   } catch (error) {
-    console.warn('[workspace-gate] agent registry unavailable:', error?.message || error)
+    console.warn('[workspace-isolate] agent registry unavailable:', error?.message || error)
   }
 
   function runningAgents() {
@@ -367,7 +367,7 @@ export function apply(ctx, config) {
   /**
    * True when a loader entry must never be switched off. Accepts a loader entry,
    * an entryRows() row, or a bare id from the API: the built-in names are short
-   * plugin names ('workspace-gate', 'dsh-web-app'), while loader ids carry the
+   * plugin names ('workspace-isolate', 'dsh-web-app'), while loader ids carry the
    * include group prefix and package names carry a scope and subpath.
    */
   function protect(target) {
@@ -388,7 +388,7 @@ export function apply(ctx, config) {
     try {
       await writeState(stateFile, state)
     } catch (error) {
-      console.warn('[workspace-gate] cannot write state file:', error.message)
+      console.warn('[workspace-isolate] cannot write state file:', error.message)
     }
   }
 
@@ -683,11 +683,11 @@ export function apply(ctx, config) {
       fetch: async function (request) {
         const body = await readBody(request)
         try {
-          const file = join(home, 'dsh-workspace-gate', 'diag.log')
+          const file = join(home, 'dsh-workspace-isolate', 'diag.log')
           await mkdir(dirname(file), { recursive: true })
           await appendFile(file, JSON.stringify({ receivedAt: new Date().toISOString(), body: body }) + '\n', 'utf8')
         } catch (error) {
-          console.warn('[workspace-gate] cannot write diag log:', error.message)
+          console.warn('[workspace-isolate] cannot write diag log:', error.message)
         }
         return json({ ok: true })
       },
@@ -698,7 +698,7 @@ export function apply(ctx, config) {
     try {
       connection.fetch.register(route)
     } catch (error) {
-      console.warn('[workspace-gate] cannot register route', route.path, error?.message || error)
+      console.warn('[workspace-isolate] cannot register route', route.path, error?.message || error)
     }
   }
 
@@ -709,7 +709,7 @@ export function apply(ctx, config) {
       if (state.activeWorkspaceId && config.gatingEnabled) applyGating(state.activeWorkspaceId)
     }, 10000)
     return function () { clearInterval(timer) }
-  }, 'workspace-gate: state')
+  }, 'workspace-isolate: state')
 
   if (state.activeWorkspaceId && config.gatingEnabled) {
     void applyGating(state.activeWorkspaceId)
