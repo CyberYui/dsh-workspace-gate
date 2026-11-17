@@ -48,7 +48,7 @@
     }
   },
   "scripts": {
-    "test": "node test/host-regression.mjs",
-    "verify": "node test/host-regression.mjs"
+    "test": "node test/host-regression.mjs && node test/css-invariants.mjs",
+    "verify": "node test/host-regression.mjs && node test/css-invariants.mjs"
   }
 }

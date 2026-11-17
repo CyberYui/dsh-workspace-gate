@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-\${{ github.ref }}
+  group: verify-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      plugin: \${{ steps.classify.outputs.plugin }}
-      docs: \${{ steps.classify.outputs.docs }}
+      plugin: ${{ steps.classify.outputs.plugin }}
+      docs: ${{ steps.classify.outputs.docs }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -32,12 +32,12 @@ jobs:
 
   plugin:
     needs: changes
-    if: \${{ needs.changes.outputs.plugin == 'true' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ needs.changes.outputs.plugin == 'true' || github.event_name == 'workflow_dispatch' }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-    runs-on: \${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -48,10 +48,11 @@ jobs:
           node-version: 22
       - run: node .github/scripts/repo-hygiene.mjs verify
       - run: node test/host-regression.mjs
+      - run: node test/css-invariants.mjs
 
   docs:
     needs: changes
-    if: \${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -72,5 +73,5 @@ jobs:
           persist-credentials: false
       - name: Aggregate
         env:
-          NEEDS: \${{ toJSON(needs) }}
+          NEEDS: ${{ toJSON(needs) }}
         run: node .github/scripts/repo-hygiene.mjs result

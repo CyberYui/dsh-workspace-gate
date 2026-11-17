@@ -283,6 +283,40 @@ await test('B8: the arm() 409 guard reads the agent registry live', async functi
   assert.equal(refused.body.deferred, 'agent-active')
 })
 
+await test('B10: /appearance clamps, persists and is reported by /state', async function () {
+  const world = makeWorld({ state: { version: 1, activeWorkspaceId: null, autoFollow: false, workspaces: {} } })
+  host.apply(world.ctx, { gatingEnabled: true, protectIds: [], dataFile: world.dataFile })
+
+  const fresh = (await call(world, '/state', 'GET')).body
+  assert.equal(fresh.surfaceOpacity, 85, 'a state file with no stored value gets the default')
+
+  const low = await call(world, '/appearance', 'PUT', { surfaceOpacity: -40 })
+  assert.equal(low.status, 200)
+  assert.equal(low.body.surfaceOpacity, 0, 'below-range values clamp to 0')
+
+  const high = await call(world, '/appearance', 'PUT', { surfaceOpacity: 250.6 })
+  assert.equal(high.body.surfaceOpacity, 100, 'above-range values clamp to 100')
+
+  const mid = await call(world, '/appearance', 'PUT', { surfaceOpacity: 42.4 })
+  assert.equal(mid.body.surfaceOpacity, 42, 'values round to an integer')
+
+  const state = (await call(world, '/state', 'GET')).body
+  assert.equal(state.surfaceOpacity, 42, '/state reports the stored value')
+  assert.ok(fs.readFileSync(world.dataFile, 'utf8').includes('"surfaceOpacity": 42'), 'the value is persisted to disk')
+
+  const junk = await call(world, '/appearance', 'PUT', { surfaceOpacity: Number.NaN })
+  assert.equal(junk.body.surfaceOpacity, 42, 'a non-finite value leaves the stored value alone')
+})
+
+await test('B11: a corrupted stored opacity is clamped on read, not trusted', async function () {
+  const world = makeWorld({
+    state: { version: 1, activeWorkspaceId: null, autoFollow: false, surfaceOpacity: 999, workspaces: {} },
+  })
+  host.apply(world.ctx, { gatingEnabled: true, protectIds: [], dataFile: world.dataFile })
+  const state = (await call(world, '/state', 'GET')).body
+  assert.equal(state.surfaceOpacity, 100, 'a too-large stored value is clamped to 100')
+})
+
 let failed = 0
 for (const result of results) {
   if (result.ok) {

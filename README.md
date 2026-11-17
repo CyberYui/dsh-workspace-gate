@@ -27,6 +27,7 @@ DSH 的插件是**按 profile 全局加载**的：`cordis.patch.yml` 里写 `dis
 
 - **侧边栏面板**：跨工作区管理。工作区列表、每个工作区的插件/技能开关、「保存并启用 / 捕获当前状态 / 清空 / 停用」。
 - **会话 chip**：跟随当前会话所属工作区，只读展示 + 快速开关。
+- **外观卡片**：面板顶部一个 0–100% 的滑杆，实时预览本插件的表面不透明度（见下一节）。
 
 ## 安装
 
@@ -54,6 +55,32 @@ dsh plugin add @cyberyui/dsh-workspace-isolate --profile desktop
 
 最后一条是安全功能的一部分：**策略静默失配会被显示出来**，而不是假装生效。
 
+## 外观：表面不透明度
+
+装了 wallpaper 引擎之后，玻璃配方会在 `body[data-we-glass-page]` 上改写 `--dsw-alias-bg-layer-*`，
+本插件的面板、chip 与浮层会跟着变成「玻璃片」——背景透出花纹、文字压在上面看不清。
+所以本插件把不透明度**收回自己手里**，而不是继承宿主的玻璃配方：
+
+- **基色** `--we-panel-color`：不透明的主题面（浅色纯白、深色 `rgb(35,35,36)`）。
+- **釉色** `--we-surface-tint-light` / `--we-surface-tint-dark`：你在 wallpaper 里选的那个玻璃色。
+- **浓度** `--wg-surface-opacity`：本插件面板上的滑杆，0..1，默认 **0.85**。
+
+视觉效果仍然跟随你的玻璃色与玻璃开关（和设置窗、侧栏同源），但可读性由本插件自己兜住。
+
+滑杆的端点语义是刻意的：
+
+| 位置 | 结果 |
+| --- | --- |
+| 0% | 表面**完全透明**——面板/chip/浮层的底消失，只剩文字与边框 |
+| 100% | 表面**完全不透明**——纯色面，完全不透壁纸 |
+| 中间 | 单调过渡，釉色占比随浓度缩放 |
+
+拖动时只改本地与 CSS（实时预览），**松手 / 回车 / 失焦才落盘**，所以拖一圈不会写一百次文件。
+值存在状态文件里，**实时生效，不需要重启 DSH**。
+
+这个设置**不在** `cordis.patch.yml` 的配置里：它属于运行时状态，真值只有一处（状态文件），
+避免「配置写 85、状态写 60」这种两处真值。
+
 ## 配置
 
 `dsh` 段（写在 profile 的插件配置里）：
@@ -70,6 +97,9 @@ dataFile: ''             # 留空 = <home>/dsh-workspace-isolate/workspaces.json
 C:/Users/<you>/.dsh/dsh-workspace-isolate/workspaces.json
 ```
 
+里面除了各工作区的开关，还有一个 `surfaceOpacity`（0–100 的整数）。手写也行，
+但超出范围的值会在读取时被钳回 0–100，非数字则保留默认 85。
+
 ## 开发
 
 零运行时依赖，没有构建步骤。
@@ -77,12 +107,15 @@ C:/Users/<you>/.dsh/dsh-workspace-isolate/workspaces.json
 ```bash
 node --check index.js client.js                  # 语法
 node .github/scripts/repo-hygiene.mjs verify    # 结构 + 回归标记门禁
-node test/host-regression.mjs                    # 行为回归（B1–B9）
-npm test                                         # 同上
+node test/host-regression.mjs                    # 行为回归（B1–B11）
+node test/css-invariants.mjs                     # 玻璃适配样式回归（8 组不变量）
+npm test                                         # 上面两个回归一起跑
 ```
 
-`test/host-regression.mjs` 用临时目录和假 loader 覆盖九类回归，不碰真实 profile、不需要 DSH 在跑。
+`test/host-regression.mjs` 用临时目录和假 loader 覆盖十一类回归，不碰真实 profile、不需要 DSH 在跑。
 `repo-hygiene.mjs verify` 额外检查这些修复的回归标记还在，防止有人删掉修复后测试跟着改绿。
+`test/css-invariants.mjs` 盯住玻璃适配的三套旧方案（`--wg-wash`、`--we-readability-floor`、
+`(1 - var(--wg-surface-opacity`）不要回来——那三次都是真实翻车，改动原因写在脚本头部。
 
 ### 改完之后
 
@@ -93,7 +126,11 @@ npm test                                         # 同上
 ## CI
 
 `verify.yml`：`changes`（变更分类，拿不到基线就全量，fail-closed）→ `plugin`（Ubuntu + Windows
-跑 hygiene + 回归）/ `docs` → `result`（`ci/result`，总是运行）。分支保护只勾 `ci/result`。
+跑 hygiene + 行为回归 + 样式回归）/ `docs` → `result`（`ci/result`，总是运行）。
+分支保护只勾 `ci/result`。
+
+`plugin` 的矩阵是 `runs-on: ${{ matrix.os }}` + `os: [ubuntu-latest, windows-latest]`，
+两格都会跑：客户端 `client.js` 里既有 `documentElement` 也有 `fetch`，Windows 与 Linux 都要过。
 
 ## 贡献
 

@@ -39,7 +39,7 @@ export const Config = z.object({
 })
 
 function emptyState() {
-  return { version: STATE_VERSION, activeWorkspaceId: null, autoFollow: false, workspaces: {} }
+  return { version: STATE_VERSION, activeWorkspaceId: null, autoFollow: false, surfaceOpacity: 85, workspaces: {} }
 }
 
 function normalizeState(raw) {
@@ -47,6 +47,11 @@ function normalizeState(raw) {
   if (!raw || typeof raw !== 'object') return state
   if (typeof raw.activeWorkspaceId === 'string') state.activeWorkspaceId = raw.activeWorkspaceId
   if (typeof raw.autoFollow === 'boolean') state.autoFollow = raw.autoFollow
+  // Reader-facing appearance control. A number outside 0..100 is a corrupted
+  // file, so clamp rather than reject: the slider is not worth a broken panel.
+  if (typeof raw.surfaceOpacity === 'number' && Number.isFinite(raw.surfaceOpacity)) {
+    state.surfaceOpacity = Math.min(100, Math.max(0, Math.round(raw.surfaceOpacity)))
+  }
   const workspaces = raw.workspaces
   if (workspaces && typeof workspaces === 'object') {
     for (const [id, value] of Object.entries(workspaces)) {
@@ -617,6 +622,7 @@ export function apply(ctx, config) {
     return {
       gatingEnabled: Boolean(config.gatingEnabled),
       autoFollow: Boolean(state.autoFollow),
+      surfaceOpacity: state.surfaceOpacity,
       activeWorkspaceId: state.activeWorkspaceId,
       runningAgents: runningAgents().length,
       protectIds: Array.from(protectedIds),
@@ -712,6 +718,23 @@ export function apply(ctx, config) {
           return json({ ...base, deferred: result.deferred, running: result.running, changes: [] })
         }
         return json({ ...base, activeWorkspaceId: state.activeWorkspaceId, changes: result.changes })
+      },
+    },
+    {
+      // Reader-facing appearance control, stored with the state rather than the
+      // profile config so the panel can change it at runtime. The wallpaper
+      // glass sheet supplies the tint colour; how opaque our surfaces are over
+      // it is our own decision, hence a setting instead of an inherited recipe.
+      path: ROUTE + '/appearance',
+      methods: ['PUT'],
+      requestBody: 'buffered',
+      fetch: async function (request) {
+        const body = await readBody(request)
+        if (typeof body.surfaceOpacity === 'number' && Number.isFinite(body.surfaceOpacity)) {
+          state.surfaceOpacity = Math.min(100, Math.max(0, Math.round(body.surfaceOpacity)))
+          await persist()
+        }
+        return json({ ok: true, surfaceOpacity: state.surfaceOpacity })
       },
     },
     {

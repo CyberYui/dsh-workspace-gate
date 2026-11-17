@@ -41,37 +41,49 @@ window.__ModuleLoader__.load({
     // selected by the host's own body[data-ds-dark-theme] marker; both values
     // match what the host uses for the same theme's layer-1 / layer-2.
         // chip 与它的 popover 都 portal 到 body，拿不到 .wg-panel 上的 --wg-*，
-    // 所以同一套「近不透明玻璃」令牌在这里各定义一次。
+    // 所以同一套玻璃令牌（方案 A 的地板 + 釉层配方）在这里各定义一次。
     const CHIP_CSS = [
+      // 表面配方（2026-11-17 晚·方案 C）：
+      //   基色 = --we-panel-color（不透明的主题面）
+      //   釉色 = --we-surface-tint-light/dark（用户在 wallpaper 里选的那一个玻璃色）
+      //   浓度 = --wg-surface-opacity（本插件自己的设置，面板里的滑杆，0..1）
+      // 端点语义：0% = 完全透明（表面消失），100% = 完全不透明（纯色面）。
+      // 釉色占比随浓度一起缩放（0.3 / 0.38），所以两端都不会出现另一种颜色的实底。
+      // 与方案 A 的区别：A 直接照抄玻璃插件的页面级配方，透明度由
+      // --we-readability-floor × --we-glass-alpha 决定，本机实测只有 24% 不透明，
+      // 用户报「chip 上的字在文字背景上看不清」。C 把不透明度收回到本插件手里，
+      // 同时仍然跟随用户的玻璃色与玻璃开关，因此视觉上依然和设置窗/侧栏同源。
       '.wg-chip{',
-      '  --wg-wash:calc(var(--we-glass-alpha,0.5)*0.45);',
-      '  --wg-bg:var(--we-panel-color,var(--dsw-alias-bg-layer-2,#f6f8fa));',
+      '  --wg-base:var(--we-panel-color,var(--dsw-alias-bg-layer-2,#f6f8fa));',
+      '  --wg-tint:var(--we-surface-tint-light,#ffffff);',
       '  --wg-border:var(--dsw-alias-border-l2,rgba(128,128,128,.34));',
+      '  --wg-bg:var(--wg-base);',
       '  background:var(--wg-bg);',
       '  border:1px solid var(--wg-border);',
-      '  color:var(--dsw-alias-label-secondary,#4b5563);',
+      '  color:var(--dsw-alias-label-primary,#1b1b1c);',
       '}',
       'body[data-we-glass-page] .wg-chip{',
-      '  --wg-bg:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-2,#f6f8fa)) calc((1 - var(--wg-wash))*100%),var(--we-surface-tint-light,transparent));',
+      '  --wg-bg:color-mix(in srgb,var(--wg-tint) calc(var(--wg-surface-opacity,0.85)*0.3*100%),color-mix(in srgb,var(--wg-base) calc(var(--wg-surface-opacity,0.85)*100%),transparent));',
       '}',
       'body[data-ds-dark-theme][data-we-glass-page] .wg-chip{',
-      '  --wg-bg:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-2,#2c2c2e)) calc((1 - var(--wg-wash))*100%),var(--we-surface-tint-dark,transparent));',
+      '  --wg-tint:var(--we-surface-tint-dark,#0d1524);',
       '}',
       '.wg-popover{',
-      '  --wg-wash:calc(var(--we-glass-alpha,0.5)*0.45);',
-      '  --wg-bg:var(--we-panel-color,var(--dsw-alias-bg-layer-1,#f9fafb));',
-      '  --wg-bg-raised:var(--we-panel-color,var(--dsw-alias-bg-layer-1,#ffffff));',
+      '  --wg-base:var(--we-panel-color,var(--dsw-alias-bg-layer-1,#f9fafb));',
+      '  --wg-tint:var(--we-surface-tint-light,#ffffff);',
       '  --wg-border:var(--dsw-alias-border-l2,rgba(128,128,128,.34));',
+      '  --wg-bg:var(--wg-base);',
+      '  --wg-bg-raised:var(--we-panel-color,var(--dsw-alias-bg-layer-1,#ffffff));',
       '  background:var(--wg-bg);',
       '  border:1px solid var(--wg-border);',
       '}',
       'body[data-we-glass-page] .wg-popover{',
-      '  --wg-bg:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#f9fafb)) calc((1 - var(--wg-wash))*100%),var(--we-surface-tint-light,transparent));',
-      '  --wg-bg-raised:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#ffffff)) calc((1 - var(--wg-wash)*1.35)*100%),var(--we-surface-tint-light,transparent));',
+      '  --wg-bg:color-mix(in srgb,var(--wg-tint) calc(var(--wg-surface-opacity,0.85)*0.3*100%),color-mix(in srgb,var(--wg-base) calc(var(--wg-surface-opacity,0.85)*100%),transparent));',
+      '  --wg-bg-raised:color-mix(in srgb,var(--wg-tint) calc(var(--wg-surface-opacity,0.85)*0.38*100%),color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#ffffff)) calc(var(--wg-surface-opacity,0.85)*100%),transparent));',
       '}',
       'body[data-ds-dark-theme][data-we-glass-page] .wg-popover{',
-      '  --wg-bg:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#1b1b1c)) calc((1 - var(--wg-wash))*100%),var(--we-surface-tint-dark,transparent));',
-      '  --wg-bg-raised:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#2c2c2e)) calc((1 - var(--wg-wash)*1.35)*100%),var(--we-surface-tint-dark,transparent));',
+      '  --wg-tint:var(--we-surface-tint-dark,#0d1524);',
+      '  --wg-bg-raised:color-mix(in srgb,var(--wg-tint) calc(var(--wg-surface-opacity,0.85)*0.38*100%),color-mix(in srgb,var(--we-panel-color,#2c2c2e) calc(var(--wg-surface-opacity,0.85)*100%),transparent));',
       '}',
     ].join('\n')
     const ensureChipCss = () => {
@@ -96,31 +108,37 @@ window.__ModuleLoader__.load({
     // each bundle with a coloured edge plus a text badge, so colour is never
     // the only signal. The static palette is theme-invariant; only the neutral
     // scale is re-picked per theme through the host's own dark marker.
-        // ── 表面与文字：壁纸玻璃的「近不透明」变体（2026-11-17 方案②） ─────────────
-    // 玻璃配方在 body 上就把 --dsw-alias-bg-layer-* 算完了，子元素再覆盖
-    // --we-readability-floor 也改不动它；而且它的不透明基底是
-    // --we-readability-base（= 用户的玻璃色），浅色主题下用户若把玻璃色设成深色，
-    // 宿主 --dsw-alias-label-primary（深色墨）就会落在深色面上。
-    // 所以这里改用玻璃插件自己给「必须近不透明」的面用的 --we-panel-color
-    // （主题感知实底）当基底，再按 --we-glass-alpha 染一层墙纸色：
-    // 墙纸观感还在，对比度由宿主主题标签墨色原生配对兜住。
+        // ── 表面与文字：与设置窗/侧栏**同一张玻璃配方**（2026-11-17 方案 A） ─────
+    // 前身（方案②）是「--we-panel-color 实底 + --we-glass-alpha×0.45 染一层墙纸色」，
+    // 但 --we-glass-alpha 的上限是 0.25（glass-layer.js：0.25 − glassAlpha/100×0.15，
+    // 下限 0.10），乘 0.45 之后最透也只有 ~11% 着色 ⇒ 用户报「开关玻璃都没变化」。
+    // 现在直接照抄玻璃插件**页面级**那三档配方（body[data-we-glass-page] 上的
+    // --dsw-alias-bg-layer-1/2/3，权重 0.9/1.0/1.1）：可读性地板
+    // --we-readability-floor × --we-readability-base（按主题钳制后的用户玻璃色）
+    // + 剩余权重给 --we-surface-tint-light/dark × --we-glass-alpha。
+    // 于是「玻璃透明度 / 玻璃颜色 / 玻璃保真度」三个旋钮对本面板同样生效，
+    // 且与设置窗、侧栏、对话气泡在同一套颜色科学下；文字仍走宿主
+    // --dsw-alias-label-*，对比度由地板下限兜住。
     const PANEL_CSS = [
+      // 表面配方见 CHIP_CSS 顶部注释（方案 C）：基色 --we-panel-color、
+      // 釉色 --we-surface-tint-light/dark、浓度 --wg-surface-opacity（滑杆）。
       '.wg-panel{',
-      '  --wg-wash:calc(var(--we-glass-alpha,0.5)*0.45);',
-      '  --wg-bg:var(--we-panel-color,var(--dsw-alias-bg-layer-1,#f9fafb));',
-      '  --wg-bg-raised:var(--we-panel-color,var(--dsw-alias-bg-layer-1,#ffffff));',
+      '  --wg-base:var(--we-panel-color,var(--dsw-alias-bg-layer-1,#f9fafb));',
+      '  --wg-tint:var(--we-surface-tint-light,#ffffff);',
       '  --wg-border:var(--dsw-alias-border-l2,rgba(128,128,128,.26));',
+      '  --wg-bg:var(--wg-base);',
+      '  --wg-bg-raised:var(--we-panel-color,var(--dsw-alias-bg-layer-1,#ffffff));',
       '  background:var(--wg-bg);',
       '  border:1px solid var(--wg-border);',
       '  border-radius:10px;',
       '}',
       'body[data-we-glass-page] .wg-panel{',
-      '  --wg-bg:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#f9fafb)) calc((1 - var(--wg-wash))*100%),var(--we-surface-tint-light,transparent));',
-      '  --wg-bg-raised:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#ffffff)) calc((1 - var(--wg-wash)*1.35)*100%),var(--we-surface-tint-light,transparent));',
+      '  --wg-bg:color-mix(in srgb,var(--wg-tint) calc(var(--wg-surface-opacity,0.85)*0.3*100%),color-mix(in srgb,var(--wg-base) calc(var(--wg-surface-opacity,0.85)*100%),transparent));',
+      '  --wg-bg-raised:color-mix(in srgb,var(--wg-tint) calc(var(--wg-surface-opacity,0.85)*0.38*100%),color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#ffffff)) calc(var(--wg-surface-opacity,0.85)*100%),transparent));',
       '}',
       'body[data-ds-dark-theme][data-we-glass-page] .wg-panel{',
-      '  --wg-bg:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#1b1b1c)) calc((1 - var(--wg-wash))*100%),var(--we-surface-tint-dark,transparent));',
-      '  --wg-bg-raised:color-mix(in srgb,var(--we-panel-color,var(--dsw-alias-bg-layer-1,#2c2c2e)) calc((1 - var(--wg-wash)*1.35)*100%),var(--we-surface-tint-dark,transparent));',
+      '  --wg-tint:var(--we-surface-tint-dark,#0d1524);',
+      '  --wg-bg-raised:color-mix(in srgb,var(--wg-tint) calc(var(--wg-surface-opacity,0.85)*0.38*100%),color-mix(in srgb,var(--we-panel-color,#2c2c2e) calc(var(--wg-surface-opacity,0.85)*100%),transparent));',
       '}',
       '.wg-wslist{display:flex;flex-direction:column;gap:4px}',
       '.wg-ws{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;border:1px solid transparent;background:transparent;cursor:pointer}',
@@ -173,6 +191,14 @@ window.__ModuleLoader__.load({
       '.wg-switch--on .wg-switch__thumb{margin-left:16px}',
       '.wg-diag{margin-top:10px;flex-shrink:0}',
       '.wg-diag-body{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10px;color:var(--dsw-alias-label-tertiary,#757a81);white-space:pre-wrap;word-break:break-word;margin-top:4px}',
+      '.wg-range{display:flex;align-items:center;gap:8px;margin-top:8px}',
+      '.wg-range input{flex:1;min-width:0;cursor:pointer;accent-color:var(--dsw-static-green-500,#22c55e)}',
+      '.wg-range-val{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;color:var(--dsw-alias-label-secondary,#61666b);min-width:40px;text-align:right;font-variant-numeric:tabular-nums}',
+      '.wg-preview{position:relative;margin-top:8px;padding:10px 10px 8px;border-radius:8px;border:1px dashed var(--wg-border);background:color-mix(in srgb,var(--wg-bg) 58%,var(--dsw-alias-label-tertiary,#8b9097))}',
+      '.wg-preview-copy{font-size:12px;line-height:1.65;color:var(--dsw-alias-label-secondary,#757a81)}',
+      '.wg-preview-copy p{margin:0 0 6px}',
+      '.wg-preview-chipwrap{position:absolute;top:8px;right:8px;display:flex;max-width:72%}',
+      '.wg-preview-rows{display:flex;flex-direction:column;gap:6px;margin-top:8px}',
     ].join('\n')
     const ensurePanelCss = () => {
       if (typeof document === 'undefined') return null
@@ -187,6 +213,19 @@ window.__ModuleLoader__.load({
       return tag
     }
     ensurePanelCss()
+    // ── 外观：表面不透明度（方案 C 的唯一旋钮）─────────────────────────────
+    // 写在 <html> 上，面板与 portal 到 body 的 chip / popover 都能继承；
+    // CSS 里写的是 var(--wg-surface-opacity, 0.85)，未设置过时也有可用默认值。
+    const DEFAULT_SURFACE_OPACITY = 85
+    const clampOpacity = (value) => {
+      const n = Number(value)
+      if (!Number.isFinite(n)) return DEFAULT_SURFACE_OPACITY
+      return Math.min(100, Math.max(0, Math.round(n)))
+    }
+    const applySurfaceOpacity = (value) => {
+      if (typeof document === 'undefined') return
+      document.documentElement.style.setProperty('--wg-surface-opacity', String(clampOpacity(value) / 100))
+    }
     // React throws #31 ("Objects are not valid as a React child") when a plain
     // object reaches the child list. Every field below comes from host JSON, so
     // one unexpected object would blank the whole panel. This wrapper keeps
@@ -263,6 +302,14 @@ window.__ModuleLoader__.load({
         'action.arm': 'Gate this workspace',
         'action.unarm': 'Stop gating',
         'action.all.on': 'Enable all',
+        'appearance': 'Appearance',
+        'appearance.opacity': 'Surface opacity',
+        'appearance.opacity.hint':
+          'How opaque the panel, chip and popover sit over the wallpaper glass. Lower values let the wallpaper show through, and the text then competes with whatever is behind it; 100 is fully solid.',
+        'appearance.preview': 'Preview',
+        'appearance.preview.copy':
+          'The chip lives in the conversation header, directly on top of the message text. Drag the slider and see how far the surface can go before this label stops being readable.',
+        'appearance.preview.hint': 'Below the slider: the chip over sample text, then the first official and community plugin cards as they really render.',
         'action.all.off': 'Disable all',
         'state.loaded': 'loaded',
         'state.disabled': 'off',
@@ -348,6 +395,13 @@ window.__ModuleLoader__.load({
         'action.arm': '对本工作区启用门控',
         'action.unarm': '停止门控',
         'action.all.on': '全部开启',
+        'appearance': '外观',
+        'appearance.opacity': '表面不透明度',
+        'appearance.opacity.hint': '本插件的面板、chip 与浮层压在壁纸玻璃上的不透明度。拉低会透出壁纸，文字就要和背后的内容抢对比度；100 为完全不透。',
+        'appearance.preview': '预览',
+        'appearance.preview.copy':
+          'chip 位于对话头部，直接压在消息正文上。拖动滑杆，看表面能透到什么程度而这一行字仍然可读。',
+        'appearance.preview.hint': '滑杆下方：chip 压在示例正文上，以及当前真实 loader 里的第一个官方 / 社区插件卡片。',
         'action.all.off': '全部关闭',
         'state.loaded': '已加载',
         'state.disabled': '已关闭',
@@ -1190,11 +1244,16 @@ window.__ModuleLoader__.load({
       const [notice, setNotice] = useState('')
       const [error, setError] = useState('')
       const [busy, setBusy] = useState(false)
+      const [opacity, setOpacity] = useState(DEFAULT_SURFACE_OPACITY)
 
       const load = useCallback(async function () {
         try {
           const payload = await send(ROUTE + '/state', 'GET')
           setState(payload)
+          if (payload && typeof payload.surfaceOpacity === 'number') {
+            setOpacity(payload.surfaceOpacity)
+            applySurfaceOpacity(payload.surfaceOpacity)
+          }
           setSelected(function (prev) {
             const workspaces = (payload && Array.isArray(payload.workspaces)) ? payload.workspaces : []
             if (prev && workspaces.some(function (row) { return row.workspaceId === prev })) return prev
@@ -1209,6 +1268,12 @@ window.__ModuleLoader__.load({
       }, [])
 
       useEffect(function () { load() }, [load])
+      useEffect(function () { applySurfaceOpacity(opacity) }, [opacity])
+      // 拖杆：onChange 只改本地与 CSS（实时预览），松手/回车/失焦才落盘。
+      const commitOpacity = useCallback(function () {
+        send(ROUTE + '/appearance', 'PUT', { surfaceOpacity: opacity })
+          .catch(function (err) { setError(describeError(err, tt)) })
+      }, [opacity, tt])
 
       // The workspace the shell is showing right now. uiWorkspace.selection is
       // the host's persisted current-session store and workspaces.list maps
@@ -1291,6 +1356,16 @@ window.__ModuleLoader__.load({
         }
       }
 
+
+
+      // 外观卡片里的实时预览：chip 直接压在示例正文上（和对话头部同一场景），
+      // 下面两行分别取当前真实 loader 里的第一个官方 / 社区插件组，让滑杆的效果
+      // 在「chip + 卡片」两类表面上同时可见。纯计算，不是 hook。
+      const previewGroups = groupPackages(Array.isArray(state.entries) ? state.entries : [])
+      const previewOfficial = previewGroups.filter(function (group) { return group.kind === 'official' })[0]
+      const previewCommunity = previewGroups.filter(function (group) { return group.kind === 'community' })[0]
+      const previewWorkspace = (workspaces[0] && (workspaces[0].title || workspaces[0].workspaceId)) || tt('title')
+
       return h('div', { className: 'wg-panel', style: S.root },
         h('div', { style: S.header },
           h(PanelIcon, { size: 18 }),
@@ -1300,6 +1375,43 @@ window.__ModuleLoader__.load({
         h('div', { className: 'wg-subtitle', style: S.subtitle }, tt('subtitle')),
         error ? h('div', { className: 'wg-banner wg-banner--error', style: { ...S.banner, ...S.error } }, String(error)) : null,
         notice ? h('div', { className: 'wg-banner wg-banner--ok', style: { ...S.banner, ...S.notice } }, String(notice)) : null,
+        h('div', { className: 'wg-card', style: S.card },
+          h('div', { className: 'wg-section', style: { ...S.section, margin: '0 0 2px' } }, tt('appearance')),
+          h('div', { className: 'wg-range' },
+            h('input', {
+              type: 'range', min: 0, max: 100, step: 1, value: opacity,
+              'aria-label': tt('appearance.opacity'),
+              onChange: function (event) {
+                const next = clampOpacity(event.target.value)
+                setOpacity(next)
+                applySurfaceOpacity(next)
+              },
+              onPointerUp: commitOpacity,
+              onKeyUp: commitOpacity,
+              onBlur: commitOpacity,
+            }),
+            h('span', { className: 'wg-range-val' }, String(opacity) + '%')),
+          h('div', { className: 'wg-hint', style: S.hint }, tt('appearance.opacity.hint'))),
+          h('div', { className: 'wg-preview' },
+            h('div', { className: 'wg-preview-copy' },
+              h('p', null, tt('appearance.preview.copy')),
+              h('p', null, tt('subtitle'))),
+            h('div', { className: 'wg-preview-chipwrap' },
+              h('div', { className: 'wg-chip', style: S.chip, title: tt('chip.title') },
+                h(PanelIcon, { size: 13 }),
+                h('span', { style: S.chipText }, previewWorkspace),
+                h('span', { style: S.chipMeta }, tt('skills') + ' 7 / ' + tt('plugins') + ' 23'),
+                h('span', { className: 'wg-pill wg-pill--on' }, tt('armed'))))),
+          h('div', { className: 'wg-preview-rows' },
+            [previewOfficial, previewCommunity].filter(Boolean).map(function (group) {
+              return h('div', { key: group.pkg, className: cardClass(group.kind), style: { ...S.card, padding: '5px 8px' } },
+                h('div', { className: 'wg-card-head', style: S.cardHead },
+                  h('div', { className: 'wg-grow', style: { ...S.grow, minWidth: 0 } },
+                    h('div', { className: 'wg-card-title', style: { fontSize: 12, fontFamily: C.mono } }, group.pkg),
+                    h('div', { className: 'wg-card-desc', style: { ...S.skillDesc, marginTop: 2 } }, group.description || srcLabel(group.kind))),
+                  h('span', { className: srcClass(group.kind) }, srcLabel(group.kind))))
+            })),
+          h('div', { className: 'wg-hint', style: { ...S.hint, marginTop: 6 } }, tt('appearance.preview.hint')),
         h('div', { style: S.scroll },
           h('div', { className: 'wg-section' }, tt('workspace') + ' (' + workspaces.length + ')'),
           workspaces.length === 0
@@ -1397,6 +1509,7 @@ window.__ModuleLoader__.load({
         try {
           const payload = await send(ROUTE + '/state', 'GET')
           setState(payload)
+          if (payload && typeof payload.surfaceOpacity === 'number') applySurfaceOpacity(payload.surfaceOpacity)
           setError('')
           return payload
         } catch (err) {
