@@ -1,0 +1,76 @@
+# 上游 e lysia395/dsh-wallpaper-engine 的 verify.yml 是「变更分类 → 受影响分支 → 结果汇总」，
+# 这里保留同一形状。插件运行时零依赖、无 package-lock，所以不需要 npm install。
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      plugin: \${{ steps.classify.outputs.plugin }}
+      docs: \${{ steps.classify.outputs.docs }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: classify
+        run: node .github/scripts/repo-hygiene.mjs classify
+
+  plugin:
+    needs: changes
+    if: \${{ needs.changes.outputs.plugin == 'true' || github.event_name == 'workflow_dispatch' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: \${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: node .github/scripts/repo-hygiene.mjs verify
+      - run: node test/host-regression.mjs
+
+  docs:
+    needs: changes
+    if: \${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: node .github/scripts/repo-hygiene.mjs verify
+
+  # 唯一应该勾到分支保护上的 check：它总是运行，汇总上面两个分支。
+  result:
+    needs: [plugin, docs]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Aggregate
+        env:
+          NEEDS: \${{ toJSON(needs) }}
+        run: node .github/scripts/repo-hygiene.mjs result

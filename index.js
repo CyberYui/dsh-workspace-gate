@@ -436,7 +436,7 @@ export function apply(ctx, config) {
     const registry = agents()
     if (!registry || typeof registry.list !== 'function') return []
     try {
-      return agentRegistry.list().filter(function (agent) { return agent && agent.status === 'running' })
+      return registry.list().filter(function (agent) { return agent && agent.status === 'running' })
     } catch {
       return []
     }
