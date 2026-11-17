@@ -44,11 +44,12 @@
 
 ```bash
 node --check index.js client.js     # 语法
-node .github/scripts/repo-hygiene.mjs verify   # 结构 + 回归标记门禁
-node test/host-regression.mjs       # 行为回归（B1–B9）
+node .github/scripts/repo-hygiene.mjs verify   # 结构 + 回归标记 + workflow 表达式门禁
+node test/host-regression.mjs       # 行为回归（B1–B11）
+node test/css-invariants.mjs        # 玻璃适配样式 8 组不变量
 ```
 
-`npm test` / `npm run verify` 是 `node test/host-regression.mjs` 的别名。
+`npm test` / `npm run verify` 是 `node test/host-regression.mjs && node test/css-invariants.mjs` 的别名。
 
 ### 改完之后必须自查
 
@@ -63,9 +64,19 @@ node test/host-regression.mjs       # 行为回归（B1–B9）
 `verify.yml` 三个 job：
 
 - `changes` —— 分类本次变更碰了 `plugin` 还是 `docs`（拿不到基线时按全量处理，fail-closed）。
-- `plugin` —— Ubuntu + Windows 双矩阵，跑 `repo-hygiene verify` 和 `host-regression.mjs`。
+- `plugin` —— Ubuntu + Windows 双矩阵，跑 `repo-hygiene verify`、`host-regression.mjs`、`css-invariants.mjs`。
 - `docs` —— 只在文档变更时跑。
 - `result`（`ci/result`）—— **总是运行**，汇总上面两个。分支保护只勾这一个。
+
+### 改完 workflow 必须本地解析一遍
+
+`verify.yml` / `issue-claim*.yml` 里所有 `${{ ... }}` 都必须是**真的表达式**，一个反斜杠都不能多。
+曾经有 7 处被写成字面反斜杠（`\${{`），GitHub 把反斜杠当成 runner label 的字面前缀，
+`runs-on` 变成 `"\\ubuntu-latest"`，两个 plugin job 排队 15 小时从未拿到 runner，
+`ci/result` 也永远不会出现——而且从 UI 上看只是「排队中」，极易被当成 runner 容量问题忽略过去。
+
+这条现在由 `repo-hygiene.mjs verify` 兜住（检查三个 workflow 文件里有没有被转义的 `${{`），
+本地和 CI 都会红。改完 workflow 跑一遍上面的命令即可。
 
 ## 提交信息
 

@@ -42,6 +42,7 @@ function changedFiles() {
 
 const PLUGIN_PATTERNS = [/^index\.js$/, /^client\.js$/, /^cordis\.patch\.yml$/, /^package\.json$/, /^test\//, /^\.github\//, /^icon\.svg$/];
 const DOCS_PATTERNS = [/^README\.md$/, /^CONTRIBUTING\.md$/, /^LICENSE$/, /^docs\//];
+const WORKFLOW_FILES = ['.github/workflows/verify.yml', '.github/workflows/issue-claim.yml', '.github/workflows/issue-claim-policy.yml'];
 
 function classify() {
   const files = changedFiles();
@@ -94,6 +95,15 @@ function verify() {
   for (const file of ['index.js', 'client.js']) {
     const parsed = spawnSync(process.execPath, ['--check', file], { cwd: ROOT, encoding: 'utf8' });
     if (parsed.status !== 0) problems.push(file + ' 语法检查失败：' + String(parsed.stderr || '').trim());
+  }
+  // workflow 里的 ${{ 必须是真的表达式。曾经有 7 处被写成字面反斜杠，GitHub 把反斜杠
+  // 当 runner label 的字面前缀（runs-on 变成 "\\ubuntu-latest"），plugin 两个矩阵 job
+  // 排队 15 小时从未拿到 runner，ci/result 也永远不会出现。
+  for (const file of WORKFLOW_FILES) {
+    if (!existsSync(path.join(ROOT, file))) continue;
+    const text = readSource(file);
+    const escaped = text.match(/\\\$\{\{/g);
+    if (escaped) problems.push(file + ' 有 ' + escaped.length + ' 处被转义的 ${{（必须写成 ${{）');
   }
   for (const file of ['index.js', 'client.js', 'cordis.patch.yml', 'package.json', 'LICENSE']) {
     if (!existsSync(path.join(ROOT, file))) problems.push('缺少必需文件 ' + file);
