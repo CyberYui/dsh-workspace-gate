@@ -49,6 +49,7 @@ jobs:
       - run: node .github/scripts/repo-hygiene.mjs verify
       - run: node test/host-regression.mjs
       - run: node test/css-invariants.mjs
+      - run: node test/panel-search.mjs
       - run: node test/checks-update-retry.mjs
 
   docs:

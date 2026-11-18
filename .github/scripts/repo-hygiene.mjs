@@ -73,12 +73,15 @@ const REQUIRED_MARKERS = [
   ['index.js', 'dumpSig', 'B3：dump 快照按签名去重'],
   ['index.js', 'function agents()', 'B8：agents 服务缺失时兜底'],
   ['index.js', "ctx.get('agents')", 'B8：必须同步取一次 agents，不能只靠异步 inject'],
+  ['client.js', 'search.placeholder', 'S1：面板搜索（用户 m23218）'],
+  ['client.js', 'entry.profileOff', 'S2：重启提示由 profileOff 派生，不伪造字段'],
   ['.github/scripts/issue-claim-policy.cjs', 'async function withRetry(', 'S4：checks.update 必须走有界重试（create→update 传播窗口）'],
 ];
 const FORBIDDEN_PATTERNS = [
   ['index.js', /providedNames/, 'B6：条目 id / 包名与服务名不是同一命名空间'],
   ['index.js', /agentRegistry\.list\(\)/, 'B8：必须用局部 registry，避免兜底拿到服务后仍读旧变量'],
   ['client.js', /setInterval\(read,\s*1000\)/, 'B9：会话 id 不得 1s 轮询'],
+  ['index.js', /restartRequired/, 'S3：不得伪造未经证明的重启标记（技能侧语义不在本仓库）'],
   ['.github/scripts/issue-claim-policy.cjs', /await github\.rest\.checks\.update\(/, 'S5：不得出现未包裹的 checks.update（会被传播窗口 404 打断）'],
 ];
 
