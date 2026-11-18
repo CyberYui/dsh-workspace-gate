@@ -199,6 +199,9 @@ window.__ModuleLoader__.load({
       '.wg-preview-copy p{margin:0 0 6px}',
       '.wg-preview-chipwrap{position:absolute;top:8px;right:8px;display:flex;max-width:72%}',
       '.wg-preview-rows{display:flex;flex-direction:column;gap:6px;margin-top:8px}',
+      '.wg-search{flex:1 1 140px;min-width:0;box-sizing:border-box;font:inherit;font-size:12px;line-height:1.4;padding:3px 8px;border-radius:7px;border:1px solid var(--wg-border);background:var(--wg-bg-raised);color:inherit;outline:none}',
+      '.wg-search:focus{border-color:var(--dsw-alias-border-l3,rgba(127,127,177,.34))}',
+      '.wg-search::placeholder{color:var(--dsw-alias-label-tertiary,#8b9097)}',
     ].join('\n')
     const ensurePanelCss = () => {
       if (typeof document === 'undefined') return null
@@ -287,6 +290,12 @@ window.__ModuleLoader__.load({
         'filter.all': 'All',
         'filter.community': 'Community',
         'filter.official': 'Official',
+        'search.placeholder': 'Search plugins and skills',
+        'search.clear': 'Clear',
+        'search.noResults': 'No plugin or skill matches.',
+        'hint.live': 'Gating switches apply immediately; no DSH restart is needed.',
+        'hint.restart.profile': 'Entries turned off in cordis.patch.yml need a DSH restart after you edit them.',
+        'hint.skills.explorer': 'Skill switches are written by dsh-skill-explorer. A running session may not reload them at once - start a new session if nothing changes.',
         'badge.official': 'official',
         'badge.community': 'community',
         'badge.internal': 'internal',
@@ -380,6 +389,12 @@ window.__ModuleLoader__.load({
         'filter.all': '全部',
         'filter.community': '社区',
         'filter.official': '官方',
+        'search.placeholder': '搜索插件与技能',
+        'search.clear': '清除',
+        'search.noResults': '没有匹配的插件或技能。',
+        'hint.live': '门控开关实时生效，无需重启 DSH。',
+        'hint.restart.profile': '在 cordis.patch.yml 里关闭的条目，改完需要重启 DSH。',
+        'hint.skills.explorer': '技能开关由 dsh-skill-explorer 写入。正在进行的会话不一定立刻重新加载技能；没有变化就新开会话。',
         'badge.official': '官方',
         'badge.community': '社区',
         'badge.internal': '内部',
@@ -512,6 +527,7 @@ window.__ModuleLoader__.load({
       segBtn: { fontSize: 11, padding: '2px 8px', borderRadius: 6, cursor: 'pointer' },
       segBtnOn: { fontSize: 11, padding: '2px 8px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 },
       actions: { display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 },
+      search: { flex: '1 1 140px', minWidth: 0 },
       banner: { fontSize: 12, padding: '6px 8px', borderRadius: 7, flexShrink: 0 },
       error: {},
       notice: {},
@@ -620,6 +636,46 @@ window.__ModuleLoader__.load({
       return Array.from(groups.values()).sort(function (a, b) {
         if (a.kind !== b.kind) return a.kind === 'community' ? -1 : 1
         return a.pkg < b.pkg ? -1 : a.pkg > b.pkg ? 1 : 0
+      })
+    }
+
+    function normalizeText(value) {
+      try { return String(value == null ? '' : value).trim().toLowerCase() } catch { return '' }
+    }
+
+    /** A plugin entry matches on id / name / package / description. */
+    function entryMatches(entry, query) {
+      const q = normalizeText(query)
+      if (!q) return true
+      if (!entry) return false
+      return [entry.id, entry.name, entry.pkg, entry.description].some(function (field) {
+        return normalizeText(field).indexOf(q) !== -1
+      })
+    }
+
+    /**
+     * A group matches as a whole when its own package name or description hits;
+     * otherwise only the matching entries survive. Otherwise a search would leave
+     * half-empty groups that look identical to a broken list.
+     */
+    function groupMatches(group, query) {
+      const q = normalizeText(query)
+      if (!q) return group
+      const groupHit = [group.pkg, group.description].some(function (field) {
+        return normalizeText(field).indexOf(q) !== -1
+      })
+      if (groupHit) return group
+      const entries = (group.entries || []).filter(function (entry) { return entryMatches(entry, query) })
+      if (entries.length === 0) return null
+      return { ...group, entries: entries }
+    }
+
+    function skillMatches(skill, query) {
+      const q = normalizeText(query)
+      if (!q) return true
+      if (!skill) return false
+      return [skill.name, skill.description, skill.provider, skill.source, skill.whenToUse].some(function (field) {
+        return normalizeText(field).indexOf(q) !== -1
       })
     }
 
@@ -902,7 +958,10 @@ window.__ModuleLoader__.load({
 
     function PluginCards(props) {
       const groups = props.groups || []
-      if (groups.length === 0) return h('div', { className: 'wg-hint' }, tt('empty.filter'))
+      const query = props.query || ''
+      if (groups.length === 0) {
+        return h('div', { className: 'wg-hint' }, normalizeText(query) ? tt('search.noResults') : tt('empty.filter'))
+      }
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
         groups.map(function (group) {
           return h(PluginCard, {
@@ -918,10 +977,14 @@ window.__ModuleLoader__.load({
 
     function SkillsCard(props) {
       const skills = props.skills
+      const query = props.query || ''
       if (skills === null || skills === undefined) return h('div', { className: 'wg-hint' }, tt('checking'))
-      if (skills.length === 0) return h('div', { className: 'wg-hint' }, tt('empty.skills'))
-      const official = skills.filter(function (skill) { return kindOfSkill(skill) === 'official' })
-      const community = skills.filter(function (skill) { return kindOfSkill(skill) !== 'official' })
+      const matched = normalizeText(query) ? skills.filter(function (skill) { return skillMatches(skill, query) }) : skills
+      if (matched.length === 0) {
+        return h('div', { className: 'wg-hint' }, normalizeText(query) ? tt('search.noResults') : tt('empty.skills'))
+      }
+      const official = matched.filter(function (skill) { return kindOfSkill(skill) === 'official' })
+      const community = matched.filter(function (skill) { return kindOfSkill(skill) !== 'official' })
       const renderRow = function (skill) {
         return h('tr', { key: skill.name + ':' + (skill.provider || skill.source || '') },
           h('td', { style: { ...S.skillTd, ...S.name } }, skill.name),
@@ -957,17 +1020,25 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState('')
 
       const groups = (payload && Array.isArray(payload.groups)) ? payload.groups : []
+      const query = props.query || ''
       const total = groups.reduce(function (sum, group) {
         return sum + (Array.isArray(group.skills) ? group.skills.length : 0)
       }, 0)
+      // 计数保持未过滤（搜索时数字不跳动）；列表按查询过滤，整组无命中就整组消失。
+      const visibleGroups = normalizeText(query)
+        ? groups.map(function (group) {
+            const skills = (Array.isArray(group.skills) ? group.skills : []).filter(function (skill) { return skillMatches(skill, query) })
+            return skills.length ? { ...group, skills: skills } : null
+          }).filter(function (group) { return group !== null })
+        : groups
 
       useEffect(function () {
         if (props.onCount) props.onCount(payload === null ? null : total)
       }, [total, payload])
 
-      if (payload === null) return h(SkillsCard, { skills: props.fallback })
+      if (payload === null) return h(SkillsCard, { skills: props.fallback, query: props.query })
       if (payload === undefined) return h('div', { className: 'wg-hint' }, tt('explorer.loading'))
-      if (!groups.length) return h('div', { className: 'wg-hint' }, tt('explorer.empty'))
+      if (!visibleGroups.length) return h('div', { className: 'wg-hint' }, normalizeText(query) ? tt('search.noResults') : tt('explorer.empty'))
 
       const hasPath = function (skill) { return typeof skill.path === 'string' && skill.path.length > 0 }
       const isEnabled = function (skill) {
@@ -995,7 +1066,7 @@ window.__ModuleLoader__.load({
       return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
         notice ? h('div', { className: 'wg-hint', style: { ...S.hint, color: C.success } }, notice) : null,
         error ? h('div', { className: 'wg-hint', style: { ...S.hint, color: C.danger } }, error) : null,
-        groups.map(function (group) {
+        visibleGroups.map(function (group) {
           const key = group.key || group.title || 'group'
           const skills = Array.isArray(group.skills) ? group.skills : []
           const isCollapsed = !!collapsed[key]
@@ -1061,6 +1132,7 @@ window.__ModuleLoader__.load({
       const [explorerCount, setExplorerCount] = useState(null)
       const [tab, setTab] = useState('plugins')
       const [filter, setFilter] = useState('community')
+      const [query, setQuery] = useState('')
       // Official runtime bundles start collapsed: they are the host's own
       // machinery, and the community plugins are what the user came to see.
       const [collapsed, setCollapsed] = useState(function () {
@@ -1074,9 +1146,10 @@ window.__ModuleLoader__.load({
       const entries = (state && Array.isArray(state.entries)) ? state.entries : []
       const groups = useMemo(function () { return groupPackages(entries) }, [entries])
       const visible = useMemo(function () {
-        if (filter === 'all') return groups
-        return groups.filter(function (group) { return group.kind === filter })
-      }, [groups, filter])
+        const byKind = filter === 'all' ? groups : groups.filter(function (group) { return group.kind === filter })
+        if (!normalizeText(query)) return byKind
+        return byKind.map(function (group) { return groupMatches(group, query) }).filter(Boolean)
+      }, [groups, filter, query])
 
       const officialCount = useMemo(function () {
         return groups.filter(function (group) { return group.kind === 'official' }).length
@@ -1104,6 +1177,19 @@ window.__ModuleLoader__.load({
               tt('tab.plugins') + (groups.length ? ' ' + groups.length : '')),
             h('button', { className: 'wg-seg-btn' + (tab === 'skills' ? ' wg-seg-btn--on' : ''), style: tab === 'skills' ? S.segBtnOn : S.segBtn, onClick: function () { setTab('skills') } },
               tt('tab.skills') + (skillCount === null ? '' : ' ' + skillCount))),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 150px', minWidth: 0 } },
+            h('input', {
+              type: 'search',
+              className: 'wg-search',
+              style: S.search,
+              value: query,
+              placeholder: tt('search.placeholder'),
+              'aria-label': tt('search.placeholder'),
+              onChange: function (event) { setQuery(event.target.value) },
+            }),
+            normalizeText(query)
+              ? h('button', { className: 'wg-btn', style: S.btn, onClick: function () { setQuery('') } }, tt('search.clear'))
+              : null),
           h('span', { style: S.grow }),
           tab === 'plugins'
             ? h('div', { className: 'wg-seg', style: S.seg },
@@ -1112,6 +1198,12 @@ window.__ModuleLoader__.load({
                 h('button', { className: 'wg-seg-btn' + (filter === 'official' ? ' wg-seg-btn--on' : ''), style: filter === 'official' ? S.segBtnOn : S.segBtn, onClick: function () { setFilter('official') } }, tt('filter.official') + ' ' + officialCount))
             : null),
         h('div', { className: 'wg-hint', style: { ...S.hint, flexShrink: 0 } }, tt('hint.filter')),
+        tab === 'plugins'
+          ? h('div', { className: 'wg-hint', style: { ...S.hint, flexShrink: 0 } },
+              entries.some(function (entry) { return entry.profileOff })
+                ? tt('hint.restart.profile')
+                : tt('hint.live'))
+          : h('div', { className: 'wg-hint', style: { ...S.hint, flexShrink: 0 } }, tt('hint.skills.explorer')),
         h('div', { style: S.scroll },
           // Both bodies stay mounted: the hidden one keeps its data warm so the
           // tab badge and the explorer's toggles are current the moment the
@@ -1119,6 +1211,7 @@ window.__ModuleLoader__.load({
           h('div', { style: { display: tab === 'plugins' ? 'block' : 'none' } },
             h(PluginCards, {
               groups: visible,
+              query: query,
               off: off,
               collapsed: collapsed,
               onToggleCollapsed: onToggleCollapsed,
@@ -1129,9 +1222,10 @@ window.__ModuleLoader__.load({
               ? h(ExplorerSkillsCard, {
                   path: props.explorerPath,
                   fallback: skills,
+                  query: query,
                   onCount: setExplorerCount,
                 })
-              : h('div', { className: 'wg-card', style: S.card }, h(SkillsCard, { skills: skills })))))
+              : h('div', { className: 'wg-card', style: S.card }, h(SkillsCard, { skills: skills, query: query })))))
     }
 
     // ------------------------------------------------------------- diagnostics
