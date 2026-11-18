@@ -73,13 +73,13 @@ const REQUIRED_MARKERS = [
   ['index.js', 'dumpSig', 'B3：dump 快照按签名去重'],
   ['index.js', 'function agents()', 'B8：agents 服务缺失时兜底'],
   ['index.js', "ctx.get('agents')", 'B8：必须同步取一次 agents，不能只靠异步 inject'],
-  ['issue-claim-policy.cjs', 'async function withRetry(', 'S4：checks.update 必须走有界重试（create→update 传播窗口）'],
+  ['.github/scripts/issue-claim-policy.cjs', 'async function withRetry(', 'S4：checks.update 必须走有界重试（create→update 传播窗口）'],
 ];
 const FORBIDDEN_PATTERNS = [
   ['index.js', /providedNames/, 'B6：条目 id / 包名与服务名不是同一命名空间'],
   ['index.js', /agentRegistry\.list\(\)/, 'B8：必须用局部 registry，避免兜底拿到服务后仍读旧变量'],
   ['client.js', /setInterval\(read,\s*1000\)/, 'B9：会话 id 不得 1s 轮询'],
-  ['issue-claim-policy.cjs', /await github\.rest\.checks\.update\(/, 'S5：不得出现未包裹的 checks.update（会被传播窗口 404 打断）'],
+  ['.github/scripts/issue-claim-policy.cjs', /await github\.rest\.checks\.update\(/, 'S5：不得出现未包裹的 checks.update（会被传播窗口 404 打断）'],
 ];
 
 function readSource(file) {
