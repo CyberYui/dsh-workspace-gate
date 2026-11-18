@@ -37,6 +37,29 @@ function permissionChecker(github, { owner, repo }) {
   };
 }
 
+/**
+ * [local] checks.create 之后立刻 checks.update 会落进 GitHub 的 check-run 传播窗口。
+ * 实测：紧随 create 的 PATCH /repos/{owner}/{repo}/check-runs/{id} 回 404 "Not Found"，
+ * 同一请求延后几十毫秒再发即成功（三次运行中主 update 3/3 失败，catch 里的补写 2/3 成功）。
+ * 这里对 404 / 409 / 429 / 5xx 做有界退避重试，避免把「政策验证通过」的 PR 标成红 check；
+ * 400 / 401 / 403 / 422 这类非瞬时状态直接抛出。
+ */
+const RETRYABLE_STATUS = (status) => status === 404 || status === 409 || status === 429 || (status >= 500 && status <= 599);
+async function withRetry(operation, { attempts = 4, delayMs = 750 } = {}) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const status = Number(error && error.status);
+      if (!RETRYABLE_STATUS(status) || attempt === attempts) break;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
+  }
+  throw lastError;
+}
+
 function parseIssueReferences(body, { owner, repo }) {
   const visible = String(body || '').replace(/<!--[\s\S]*?(?:-->|$)/g, '');
   const numbers = new Set();
@@ -183,8 +206,8 @@ async function enforcePullRequest({ github, context, core, number, hasWrite, dry
       ? (verdict.exempt ? 'Repository owner or collaborator with write permission: prior issue approval is not required.'
         : 'Every linked issue was accepted, requested and approved for this author before the PR was created.')
       : verdict.reasons.map((reason) => '- ' + reason).join('\n');
-    await github.rest.checks.update({ ...repoContext, check_run_id: check.id, status: 'completed',
-      conclusion: verdict.ok ? 'success' : 'failure', output: { title: verdict.ok ? 'Issue claim policy passed' : 'Prior issue approval required', summary } });
+    await withRetry(() => github.rest.checks.update({ ...repoContext, check_run_id: check.id, status: 'completed',
+      conclusion: verdict.ok ? 'success' : 'failure', output: { title: verdict.ok ? 'Issue claim policy passed' : 'Prior issue approval required', summary } }));
     if (!verdict.ok) {
       const comments = await github.paginate(github.rest.issues.listComments, { ...repoContext, issue_number: number, per_page: 100 });
       const previous = comments.find((comment) => sameUser(comment.user.login, 'github-actions[bot]') && comment.body.includes(COMMENT_MARKER));
@@ -202,8 +225,12 @@ async function enforcePullRequest({ github, context, core, number, hasWrite, dry
     return { number, ...verdict };
   } catch (error) {
     if (check) {
-      await github.rest.checks.update({ ...repoContext, check_run_id: check.id, status: 'completed', conclusion: 'failure',
-        output: { title: 'Issue claim policy could not be verified', summary: 'GitHub API verification failed. No PR is closed merely because verification is unavailable.\n\n' + error.message } });
+      try {
+        await withRetry(() => github.rest.checks.update({ ...repoContext, check_run_id: check.id, status: 'completed', conclusion: 'failure',
+          output: { title: 'Issue claim policy could not be verified', summary: 'GitHub API verification failed. No PR is closed merely because verification is unavailable.\n\n' + error.message } }));
+      } catch (updateError) {
+        core.warning(`PR #${number}: could not write the failure check: ${updateError.message}`);
+      }
     }
     throw error;
   }
@@ -265,5 +292,5 @@ async function run({ github, context, core, dryRun = false }) {
   return enforceEach({ github, context, core, pulls, hasWrite, dryRun });
 }
 
-module.exports = { CHECK_NAME, COMMENT_MARKER, parseCommand, permissionChecker, parseIssueReferences, findClaimRequest,
+module.exports = { CHECK_NAME, COMMENT_MARKER, parseCommand, permissionChecker, withRetry, parseIssueReferences, findClaimRequest,
   evaluatePullRequest, enforcePullRequest, recheckIssue, run };
