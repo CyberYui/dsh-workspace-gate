@@ -1,0 +1,34 @@
+name: publish
+
+# npm 将在 2027 年 1 月移除「bypass-2FA 令牌直接发布新版本」的能力
+# （classic token 已在 2025-12-09 全部吊销）。这里改用 OIDC 可信发布：
+# 在 npmjs.com 的包设置里配置一次 trusted publisher（GitHub 用户/仓库/本文件名），
+# 之后 CI 里的 `npm publish` 会优先使用 OIDC 短期凭证，不再依赖长期 npm token。
+#
+# 触发：推送 v* 标签，或 Actions 页面手动 Run workflow。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org/'
+      - name: verify
+        run: npm run verify
+      - name: publish
+        run: npm publish --access public
+        env:
+          # 可信发布配好以后这个 secret 可以不设；真设了也只是 OIDC 的兜底，不是主路径。
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

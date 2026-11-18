@@ -132,6 +132,24 @@ npm test                                         # 上面两个回归一起跑
 `plugin` 的矩阵是 `runs-on: ${{ matrix.os }}` + `os: [ubuntu-latest, windows-latest]`，
 两格都会跑：客户端 `client.js` 里既有 `documentElement` 也有 `fetch`，Windows 与 Linux 都要过。
 
+## 发布
+
+包名 `@cyberyui/dsh-workspace-isolate`，走 **npm**（DSH 插件市场从 npm 装，不看 GitHub Releases）。
+
+- **手动**：仓库根目录 `npm publish --access public`（需 npm 登录）。
+- **CI**：推 `v*` 标签触发 `.github/workflows/publish.yml`，或 Actions 页面手动 Run workflow。
+
+npm 将在 **2027 年 1 月**移除「bypass-2FA 令牌直接发布新版本」的能力（classic token 已在
+2025-12-09 全部吊销），所以发布主路径改成 **OIDC 可信发布**：
+
+1. 在 npmjs.com → 该包 → Settings → **Trusted Publisher** 加一条：
+   Organization or user = `CyberYui`，Repository = `dsh-workspace-isolate`，
+   Workflow filename = `publish.yml`。
+2. 之后推 `v*` 标签，CI 用 OIDC 短期凭证发布，不需要长期 npm token。
+   workflow 里的 `NODE_AUTH_TOKEN` 只是兜底 secret，可以不设。
+
+要求 npm CLI ≥ 11.5.1、Node ≥ 22.14.0；可信发布只支持 GitHub 托管 runner。
+
 ## 贡献
 
 先读 [CONTRIBUTING.md](CONTRIBUTING.md)。要点：改行为先提 issue；外部贡献者走

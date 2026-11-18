@@ -42,7 +42,7 @@ function changedFiles() {
 
 const PLUGIN_PATTERNS = [/^index\.js$/, /^client\.js$/, /^cordis\.patch\.yml$/, /^package\.json$/, /^test\//, /^\.github\//, /^icon\.svg$/];
 const DOCS_PATTERNS = [/^README\.md$/, /^CONTRIBUTING\.md$/, /^LICENSE$/, /^docs\//];
-const WORKFLOW_FILES = ['.github/workflows/verify.yml', '.github/workflows/issue-claim.yml', '.github/workflows/issue-claim-policy.yml'];
+const WORKFLOW_FILES = ['.github/workflows/verify.yml', '.github/workflows/issue-claim.yml', '.github/workflows/issue-claim-policy.yml', '.github/workflows/publish.yml'];
 
 function classify() {
   const files = changedFiles();
@@ -76,6 +76,7 @@ const REQUIRED_MARKERS = [
   ['client.js', 'search.placeholder', 'S1：面板搜索（用户 m23218）'],
   ['client.js', 'entry.profileOff', 'S2：重启提示由 profileOff 派生，不伪造字段'],
   ['.github/scripts/issue-claim-policy.cjs', 'async function withRetry(', 'S4：checks.update 必须走有界重试（create→update 传播窗口）'],
+  ['.github/workflows/publish.yml', 'id-token: write', 'R1：npm 走 OIDC 可信发布（2027-01 起 bypass-2FA token 不能直发）'],
 ];
 const FORBIDDEN_PATTERNS = [
   ['index.js', /providedNames/, 'B6：条目 id / 包名与服务名不是同一命名空间'],
@@ -101,7 +102,7 @@ function verify() {
     const parsed = spawnSync(process.execPath, ['--check', file], { cwd: ROOT, encoding: 'utf8' });
     if (parsed.status !== 0) problems.push(file + ' 语法检查失败：' + String(parsed.stderr || '').trim());
   }
-  // workflow 里的 ${{ 必须是真的表达式。曾经有 7 处被写成字面反斜杠，GitHub 把反斜杠
+  // workflow 里的 ${{ 必须是真的表达式（四个 workflow 文件都查）。曾经有 7 处被写成字面反斜杠，GitHub 把反斜杠
   // 当 runner label 的字面前缀（runs-on 变成 "\\ubuntu-latest"），plugin 两个矩阵 job
   // 排队 15 小时从未拿到 runner，ci/result 也永远不会出现。
   for (const file of WORKFLOW_FILES) {
